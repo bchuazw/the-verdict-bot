@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { Verdict } from '@/lib/verdict-types';
 import { verdictMeta, verdictBgMap } from '@/lib/verdict-types';
+import { triggerVerdictEffect, triggerRainEffect } from '@/lib/verdict-effects';
 import AssholeMeter from './AssholeMeter';
 import ShareCard from './ShareCard';
 
