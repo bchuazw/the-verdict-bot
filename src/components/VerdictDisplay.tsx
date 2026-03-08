@@ -18,7 +18,7 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
     hidden: { opacity: 0, y: 15 },
     visible: (i: number) => ({
       opacity: 1, y: 0,
-      transition: { delay: 0.5 + i * 0.25, duration: 0.5, ease: 'easeOut' },
+      transition: { delay: 0.5 + i * 0.25, duration: 0.5, ease: 'easeOut' as const },
     }),
   };
 
