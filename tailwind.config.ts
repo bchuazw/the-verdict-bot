@@ -56,10 +56,8 @@ export default {
         "gold-dim": "hsl(var(--gold-dim))",
         burgundy: "hsl(var(--burgundy))",
         "burgundy-light": "hsl(var(--burgundy-light))",
-        "verdict-nta": "hsl(var(--verdict-nta))",
-        "verdict-yta": "hsl(var(--verdict-yta))",
-        "verdict-esh": "hsl(var(--verdict-esh))",
-        "verdict-nah": "hsl(var(--verdict-nah))",
+        "gold-bright": "hsl(var(--gold-bright))",
+        "navy-mid": "hsl(var(--navy-mid))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
