@@ -42,44 +42,58 @@ const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(({ verdict }, ref) 
     }
   }, [shareText, appUrl]);
 
+  const glowVar = {
+    NTA: '--verdict-nta',
+    YTA: '--verdict-yta',
+    ESH: '--verdict-esh',
+    NAH: '--verdict-nah',
+  }[verdict.type];
+
   return (
     <div className="space-y-4">
-      {/* Preview card */}
-      <div ref={ref} className="share-card-export rounded-xl p-6 border border-border">
-        <div className="text-center space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Am I The Asshole? · AI Judge</p>
-          <div className="py-2">
-            <span className="text-4xl">{meta.emoji}</span>
-            <h3 className={`text-3xl font-display font-black ${meta.colorClass} mt-2`}>{verdict.type}</h3>
-            <p className="text-sm text-muted-foreground">{meta.label}</p>
+      {/* Share preview card */}
+      <div
+        ref={ref}
+        className="share-card-export rounded-2xl p-8 border border-border relative overflow-hidden"
+        style={{
+          boxShadow: `0 0 40px hsl(var(${glowVar}) / 0.05)`,
+        }}
+      >
+        {/* Top gold line */}
+        <div
+          className="absolute top-0 left-0 right-0 h-px"
+          style={{ background: `linear-gradient(90deg, transparent, hsl(var(--gold) / 0.3), transparent)` }}
+        />
+        <div className="text-center space-y-4">
+          <div className="ornament">
+            <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Am I The Asshole? · AI Judge</span>
           </div>
-          <p className="text-xs text-muted-foreground">Asshole Level: <span className="font-mono font-bold gold-text">{verdict.assholePercentage}%</span></p>
-          <p className="font-display italic text-foreground text-base px-4">"{verdict.oneLiner}"</p>
-          <p className="text-xs text-muted-foreground mt-3">— AI Judge ⚖️</p>
+          <div className="py-3">
+            <span className="text-5xl">{meta.emoji}</span>
+            <h3 className={`text-4xl font-display font-black ${meta.colorClass} mt-3`}>{verdict.type}</h3>
+            <p className="text-sm text-muted-foreground font-display italic">{meta.label}</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Asshole Level: <span className="font-mono font-bold gold-text">{verdict.assholePercentage}%</span>
+          </p>
+          <p className="font-display italic text-foreground text-lg px-4 leading-snug">
+            "{verdict.oneLiner}"
+          </p>
+          <div className="ornament mt-4">
+            <span className="text-xs text-muted-foreground">— AI Judge ⚖️</span>
+          </div>
         </div>
       </div>
 
       {/* Share buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <button onClick={shareToTwitter} className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground hover:bg-muted transition-colors">
-          𝕏 X / Twitter
-        </button>
-        <button onClick={shareToFacebook} className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground hover:bg-muted transition-colors">
-          📘 Facebook
-        </button>
-        <button onClick={shareToReddit} className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground hover:bg-muted transition-colors">
-          🤖 Reddit
-        </button>
-        <button onClick={shareToWhatsApp} className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground hover:bg-muted transition-colors">
-          💬 WhatsApp
-        </button>
-        <button onClick={copyToClipboard} className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground hover:bg-muted transition-colors">
-          📋 Copy Text
-        </button>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <button onClick={shareToTwitter} className="share-btn">𝕏 X / Twitter</button>
+        <button onClick={shareToFacebook} className="share-btn">📘 Facebook</button>
+        <button onClick={shareToReddit} className="share-btn">🤖 Reddit</button>
+        <button onClick={shareToWhatsApp} className="share-btn">💬 WhatsApp</button>
+        <button onClick={copyToClipboard} className="share-btn">📋 Copy Text</button>
         {typeof navigator !== 'undefined' && 'share' in navigator && (
-          <button onClick={nativeShare} className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground hover:bg-muted transition-colors">
-            📤 More...
-          </button>
+          <button onClick={nativeShare} className="share-btn">📤 More...</button>
         )}
       </div>
     </div>
