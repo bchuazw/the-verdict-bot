@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import CaseInput from '@/components/CaseInput';
 import VerdictDisplay from '@/components/VerdictDisplay';
 import { generateVerdict } from '@/lib/verdict-engine';
+import type { ToneType } from '@/lib/verdict-engine';
 import type { Verdict } from '@/lib/verdict-types';
 
 const Index = () => {
@@ -10,11 +11,10 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [view, setView] = useState<'input' | 'verdict'>('input');
 
-  const handleSubmit = (situation: string) => {
+  const handleSubmit = (situation: string, tone: ToneType) => {
     setIsLoading(true);
-    // Simulate deliberation
     setTimeout(() => {
-      const result = generateVerdict(situation);
+      const result = generateVerdict(situation, tone);
       setVerdict(result);
       setIsLoading(false);
       setView('verdict');
@@ -28,7 +28,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
-      {/* Subtle background pattern */}
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{
         backgroundImage: 'radial-gradient(circle at 1px 1px, hsl(var(--foreground)) 1px, transparent 0)',
         backgroundSize: '40px 40px',
