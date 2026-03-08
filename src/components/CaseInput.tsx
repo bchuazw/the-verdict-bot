@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import type { ToneType } from '@/lib/verdict-engine';
+import { toneOptions } from '@/lib/verdict-engine';
 
 interface CaseInputProps {
-  onSubmit: (situation: string) => void;
+  onSubmit: (situation: string, tone: ToneType) => void;
   isLoading: boolean;
 }
 
@@ -16,11 +18,12 @@ const placeholders = [
 
 export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
   const [situation, setSituation] = useState('');
+  const [tone, setTone] = useState<ToneType>('sassy');
   const [placeholder] = useState(() => placeholders[Math.floor(Math.random() * placeholders.length)]);
 
   const handleSubmit = () => {
     if (situation.trim().length < 20) return;
-    onSubmit(situation.trim());
+    onSubmit(situation.trim(), tone);
   };
 
   return (
@@ -65,6 +68,33 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
           <span className="text-xs text-muted-foreground">
             {situation.length}/2000 {situation.length < 20 && situation.length > 0 && '· Minimum 20 characters'}
           </span>
+        </div>
+
+        {/* Tone selector */}
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground uppercase tracking-widest mb-3">
+            🎭 Judge's Tone
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {toneOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setTone(opt.value)}
+                disabled={isLoading}
+                className={`rounded-lg border px-3 py-2.5 text-left transition-all duration-200 ${
+                  tone === opt.value
+                    ? 'border-accent bg-accent/10 shadow-[0_0_12px_hsl(var(--gold)/0.15)]'
+                    : 'border-border bg-secondary hover:bg-muted'
+                } disabled:opacity-50`}
+              >
+                <span className="text-base">{opt.emoji}</span>{' '}
+                <span className={`text-sm font-medium ${tone === opt.value ? 'gold-text' : 'text-foreground'}`}>
+                  {opt.label}
+                </span>
+                <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <motion.button
