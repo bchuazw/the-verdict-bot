@@ -15,7 +15,20 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
   const meta = verdictMeta[verdict.type];
   const shareRef = useRef<HTMLDivElement>(null);
 
-  const sectionVariants = {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (verdict.type === 'NTA' || verdict.type === 'NAH') {
+        triggerVerdictEffect(verdict.type);
+      }
+      let cleanup: (() => void) | undefined;
+      if (verdict.type === 'YTA' || verdict.type === 'ESH') {
+        cleanup = triggerRainEffect();
+      }
+      return () => cleanup?.();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [verdict.type]);
+
     hidden: { opacity: 0, y: 15 },
     visible: (i: number) => ({
       opacity: 1, y: 0,
