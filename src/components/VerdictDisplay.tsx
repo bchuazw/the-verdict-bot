@@ -29,6 +29,7 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
     return () => clearTimeout(timer);
   }, [verdict.type]);
 
+  const sectionVariants = {
     hidden: { opacity: 0, y: 15 },
     visible: (i: number) => ({
       opacity: 1, y: 0,
