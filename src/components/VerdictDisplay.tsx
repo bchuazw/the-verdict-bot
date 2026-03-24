@@ -189,7 +189,7 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
       </motion.div>
 
       <p className="text-center text-xs text-muted-foreground opacity-40 pb-10">
-        For entertainment only · Not legal or therapeutic advice · 5 AI agents, zero chill 💀
+        For entertainment only · Not legal or therapeutic advice · 3 AI agents, zero chill 💀
       </p>
     </motion.div>
   );

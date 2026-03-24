@@ -12,8 +12,6 @@ const agents: Agent[] = [
   { name: 'Judge Judy', emoji: '👩‍⚖️', color: '--verdict-yta', role: 'The Hardliner' },
   { name: 'Dr. Phil', emoji: '🧘', color: '--verdict-nta', role: 'The Empath' },
   { name: 'Chaos Goblin', emoji: '🤡', color: '--verdict-esh', role: 'Devil\'s Advocate' },
-  { name: 'Reddit Hivemind', emoji: '🤖', color: '--verdict-nah', role: 'The Crowd' },
-  { name: 'Your Mom', emoji: '👵', color: '--gold', role: 'Disappointed' },
 ];
 
 interface DebateMessage {
@@ -27,13 +25,11 @@ const debateScripts: DebateMessage[][] = [
     { agent: agents[0], text: "I've read the evidence. This is CLEAR cut.", reaction: '🔥' },
     { agent: agents[1], text: "Let's consider their feelings though...", reaction: '💭' },
     { agent: agents[2], text: "Actually, everyone's kinda wrong here lmao", reaction: '💀' },
-    { agent: agents[3], text: "1,247 upvotes say NTA", reaction: '📊' },
-    { agent: agents[4], text: "I raised you better than this.", reaction: '😤' },
     { agent: agents[0], text: "The gavel has spoken!", reaction: '🔨' },
     { agent: agents[2], text: "Plot twist: OP left out the important details", reaction: '👀' },
     { agent: agents[1], text: "I sense unresolved childhood trauma here", reaction: '🧠' },
-    { agent: agents[3], text: "This is giving main character energy", reaction: '✨' },
-    { agent: agents[4], text: "Wait until your father hears about this", reaction: '😱' },
+    { agent: agents[2], text: "This is giving main character energy", reaction: '✨' },
+    { agent: agents[0], text: "We're not here to coddle anyone.", reaction: '⚖️' },
   ],
 ];
 

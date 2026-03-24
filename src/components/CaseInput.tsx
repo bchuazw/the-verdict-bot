@@ -19,7 +19,7 @@ const placeholders = [
 const roastingSubtitles = [
 "Drop the drama. We'll judge it. 💅",
 "No cap, we're brutally honest. 💀",
-"5 AI agents. 1 verdict. Zero mercy. 🔥",
+"3 AI agents. 1 verdict. Zero mercy. 🔥",
 "Your story. Their opinions. Maximum chaos. 🤡"];
 
 
@@ -331,7 +331,7 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
         transition={{ delay: 1.2 }}
         className="text-center text-xs text-muted-foreground mt-8">
         
-        For entertainment only · 5 AI agents, zero chill 💀
+        For entertainment only · 3 AI agents, zero chill 💀
       </motion.p>
     </motion.div>);
 
