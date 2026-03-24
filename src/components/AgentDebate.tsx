@@ -105,7 +105,7 @@ export default function AgentDebate({ isActive, activeCase }: AgentDebateProps) 
           ⚖️
         </motion.div>
         <h2 className="text-2xl md:text-3xl font-display font-black gold-text">
-          Court is now in session
+          AITAH?! Court is in session
         </h2>
         {hookText && (
           <motion.p

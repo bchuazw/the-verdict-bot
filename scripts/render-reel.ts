@@ -10,6 +10,9 @@ const __dirname = path.dirname(__filename);
 
 async function main() {
   const caseIdx = parseInt(process.argv[2] || "0", 10);
+  const presetArg = process.argv[3] || "30";
+  const compositionId = `DebateReel${presetArg === "30" ? "30" : presetArg === "22" ? "22" : presetArg === "45" ? "45" : "30"}`;
+
   const seeded = SEEDED_CASES[caseIdx];
   if (!seeded) {
     console.error(`No seeded case at index ${caseIdx}. Available: 0-${SEEDED_CASES.length - 1}`);
@@ -17,11 +20,13 @@ async function main() {
   }
 
   const { caseFile, debateScript } = seeded;
-  console.log(`\n⚖️  MAIN CHARACTER COURT — Rendering reel for: "${caseFile.title}"\n`);
+  console.log(`\n⚖️  AITAH?! — Rendering reel for: "${caseFile.title}"\n`);
+  console.log(`   Preset: ${presetArg}s | Composition: ${compositionId}\n`);
 
   const inputProps: DebateReelProps = {
     hookText: debateScript.hook,
-    title: "Main Character Court",
+    subreddit: caseFile.subreddit,
+    author: caseFile.author,
     setup: debateScript.setup.join(" "),
     lines: debateScript.lines
       .filter((l) => l.speaker !== "clerk")
@@ -40,15 +45,16 @@ async function main() {
 
   console.log("📦 Bundling Remotion project...");
   const entryPoint = path.resolve(__dirname, "..", "remotion", "index.ts");
+  const publicDir = path.resolve(__dirname, "..", "public");
   const bundled = await bundle({
     entryPoint,
+    publicDir,
     onProgress: (pct) => {
-      if (pct % 20 === 0) process.stdout.write(`  bundle: ${pct}%\r`);
+      if (pct % 25 === 0) process.stdout.write(`  bundle: ${pct}%\r`);
     },
   });
   console.log("  Bundle complete.\n");
 
-  const compositionId = "DebateReel";
   console.log(`🎬 Selecting composition "${compositionId}"...`);
   const composition = await selectComposition({
     serveUrl: bundled,
@@ -59,7 +65,7 @@ async function main() {
   const outputPath = path.resolve(
     __dirname,
     "..",
-    `main-character-court-${caseFile.id}.mp4`
+    `aitah-${caseFile.id}-${presetArg}s.mp4`
   );
 
   console.log(`🎥 Rendering to: ${outputPath}`);

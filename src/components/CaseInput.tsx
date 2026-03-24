@@ -95,14 +95,12 @@ export default function CaseInput({ onSubmit, isLoading, onSeededCase }: CaseInp
           transition={{ delay: 0.3, duration: 0.6 }}
           className="text-5xl md:text-7xl font-display font-black tracking-tight mb-3"
         >
-          <span className="gold-text">Main Character</span>
-          <br />
           <motion.span
             className="gold-text inline-block"
             animate={{ scale: [1, 1.02, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            Court
+            AITAH?!
           </motion.span>
         </motion.h1>
 
@@ -331,7 +329,7 @@ export default function CaseInput({ onSubmit, isLoading, onSeededCase }: CaseInp
         transition={{ delay: 1.2 }}
         className="text-center text-xs text-muted-foreground mt-8"
       >
-        For entertainment only · Powered by Firecrawl + ElevenLabs 💀
+        AITAH?! · Powered by Firecrawl + ElevenLabs · For entertainment only 💀
       </motion.p>
     </motion.div>
   );

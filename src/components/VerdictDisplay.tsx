@@ -201,7 +201,7 @@ export default function VerdictDisplay({ verdict, onNewCase, activeCase }: Verdi
       </motion.div>
 
       <p className="text-center text-xs text-muted-foreground opacity-40 pb-10">
-        For entertainment only · Main Character Court · Powered by Firecrawl + ElevenLabs 💀
+        AITAH?! · Powered by Firecrawl + ElevenLabs · For entertainment only 💀
       </p>
     </motion.div>
   );

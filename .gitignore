@@ -11,9 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
 
 # Rendered videos (large files, keep locally)
 *.mp4
+
+# Generated audio / assets
+public/generated/
 
 # Editor directories and files
 .vscode/*
