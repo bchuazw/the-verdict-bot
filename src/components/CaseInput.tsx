@@ -10,18 +10,18 @@ interface CaseInputProps {
 }
 
 const placeholders = [
-  "My roommate keeps eating my labeled food...",
-  "I didn't invite my toxic aunt to my wedding...",
-  "I told my friend their business idea was bad...",
-  "I refused to lend money to my sibling again...",
-];
+"My roommate keeps eating my labeled food...",
+"I didn't invite my toxic aunt to my wedding...",
+"I told my friend their business idea was bad...",
+"I refused to lend money to my sibling again..."];
+
 
 const roastingSubtitles = [
-  "Drop the drama. We'll judge it. 💅",
-  "No cap, we're brutally honest. 💀",
-  "5 AI agents. 1 verdict. Zero mercy. 🔥",
-  "Your story. Their opinions. Maximum chaos. 🤡",
-];
+"Drop the drama. We'll judge it. 💅",
+"No cap, we're brutally honest. 💀",
+"5 AI agents. 1 verdict. Zero mercy. 🔥",
+"Your story. Their opinions. Maximum chaos. 🤡"];
+
 
 export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
   const [situation, setSituation] = useState('');
@@ -42,7 +42,7 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
         i++;
       } else {
         clearInterval(interval);
-        setTimeout(() => setSubtitleIdx(prev => prev + 1), 3000);
+        setTimeout(() => setSubtitleIdx((prev) => prev + 1), 3000);
       }
     }, 50);
     return () => clearInterval(interval);
@@ -64,8 +64,8 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.7, ease: 'easeOut' }}
-      className="w-full max-w-2xl mx-auto"
-    >
+      className="w-full max-w-2xl mx-auto">
+      
       {/* Header */}
       <div className="text-center mb-10">
         {/* Bouncing gavel */}
@@ -73,13 +73,13 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ delay: 0.1, duration: 0.8, type: 'spring', damping: 10 }}
-          className="text-7xl mb-4 inline-block"
-        >
+          className="text-7xl mb-4 inline-block">
+          
           <motion.span
             animate={{ rotate: [0, -15, 15, -10, 10, 0] }}
             transition={{ duration: 3, repeat: Infinity, repeatDelay: 2 }}
-            className="inline-block"
-          >
+            className="inline-block">
+            
             ⚖️
           </motion.span>
         </motion.div>
@@ -88,15 +88,15 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="text-5xl md:text-7xl font-display font-black tracking-tight mb-3"
-        >
+          className="text-5xl md:text-7xl font-display font-black tracking-tight mb-3">
+          
           <span className="gold-text">Am I The</span>
           <br />
           <motion.span
             className="gold-text inline-block"
             animate={{ scale: [1, 1.02, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
+            transition={{ duration: 2, repeat: Infinity }}>
+            
             Asshole?
           </motion.span>
         </motion.h1>
@@ -109,11 +109,11 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
           className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-mono border"
           style={{
             background: 'hsl(var(--gold) / 0.08)',
-            borderColor: 'hsl(var(--gold) / 0.2)',
-          }}
-        >
+            borderColor: 'hsl(var(--gold) / 0.2)'
+          }}>
+          
           <span className="text-sm">🤖</span>
-          <span className="gold-text font-bold">5 AI AGENTS</span>
+          <span className="gold-text font-bold">3 AI AGENTS</span>
           <span className="text-muted-foreground">×</span>
           <span className="text-sm">1 VERDICT</span>
           <span className="text-sm">💀</span>
@@ -123,22 +123,22 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="text-base text-muted-foreground font-mono h-6 mt-4"
-        >
+          className="text-base text-muted-foreground font-mono h-6 mt-4">
+          
           {displayedSubtitle}<span className="animate-pulse text-gold">|</span>
         </motion.p>
       </div>
 
       {/* Input mode selector */}
       <AnimatePresence mode="wait">
-        {inputMode === 'choose' && (
-          <motion.div
-            key="choose"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
-          >
+        {inputMode === 'choose' &&
+        <motion.div
+          key="choose"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="space-y-4">
+          
             <div className="ornament mb-4">
               <span className="section-label">📋 Present Your Case</span>
             </div>
@@ -146,16 +146,16 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Reddit link option */}
               <motion.button
-                whileHover={{ scale: 1.03, y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setInputMode('reddit')}
-                className="tone-card text-center py-8 group"
-              >
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setInputMode('reddit')}
+              className="tone-card text-center py-8 group">
+              
                 <motion.span
-                  className="text-5xl block mb-3"
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
+                className="text-5xl block mb-3"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}>
+                
                   🤖
                 </motion.span>
                 <span className="text-base font-display font-bold text-foreground block">
@@ -168,16 +168,16 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
 
               {/* Manual input option */}
               <motion.button
-                whileHover={{ scale: 1.03, y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setInputMode('manual')}
-                className="tone-card text-center py-8 group"
-              >
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setInputMode('manual')}
+              className="tone-card text-center py-8 group">
+              
                 <motion.span
-                  className="text-5xl block mb-3"
-                  animate={{ rotate: [0, 5, -5, 0] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                >
+                className="text-5xl block mb-3"
+                animate={{ rotate: [0, 5, -5, 0] }}
+                transition={{ duration: 3, repeat: Infinity }}>
+                
                   ✍️
                 </motion.span>
                 <span className="text-base font-display font-bold text-foreground block">
@@ -189,70 +189,70 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
               </motion.button>
             </div>
           </motion.div>
-        )}
+        }
 
-        {inputMode === 'reddit' && (
-          <motion.div
-            key="reddit"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
+        {inputMode === 'reddit' &&
+        <motion.div
+          key="reddit"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}>
+          
             <div className="ornament mb-4">
               <span className="section-label">🔗 Paste Reddit Link</span>
             </div>
             <RedditLinkInput
-              onPaste={handleRedditPaste}
-              onSwitchToManual={() => setInputMode('manual')}
-            />
+            onPaste={handleRedditPaste}
+            onSwitchToManual={() => setInputMode('manual')} />
+          
           </motion.div>
-        )}
+        }
 
-        {inputMode === 'manual' && (
-          <motion.div
-            key="manual"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-5"
-          >
+        {inputMode === 'manual' &&
+        <motion.div
+          key="manual"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="space-y-5">
+          
             <div className="flex items-center justify-between">
               <div className="ornament flex-1">
                 <span className="section-label">📋 Present Your Case</span>
               </div>
               <button
-                onClick={() => setInputMode('choose')}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors font-mono"
-              >
+              onClick={() => setInputMode('choose')}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors font-mono">
+              
                 ← Back
               </button>
             </div>
 
             <textarea
-              className="input-court min-h-[160px]"
-              placeholder={placeholder}
-              value={situation}
-              onChange={(e) => setSituation(e.target.value)}
-              maxLength={2000}
-              disabled={isLoading}
-            />
+            className="input-court min-h-[160px]"
+            placeholder={placeholder}
+            value={situation}
+            onChange={(e) => setSituation(e.target.value)}
+            maxLength={2000}
+            disabled={isLoading} />
+          
 
             <div className="flex items-center justify-between px-1">
               <span className="text-xs text-muted-foreground font-mono">
                 {situation.length}<span className="opacity-40">/2000</span>
-                {situation.length > 0 && situation.length < 20 && (
-                  <span className="ml-2 text-verdict-yta">· {20 - situation.length} more chars needed</span>
-                )}
+                {situation.length > 0 && situation.length < 20 &&
+              <span className="ml-2 text-verdict-yta">· {20 - situation.length} more chars needed</span>
+              }
               </span>
-              {situation.length >= 20 && (
-                <motion.span
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-xs text-verdict-nta"
-                >
+              {situation.length >= 20 &&
+            <motion.span
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-xs text-verdict-nta">
+              
                   ✓ Ready to be judged
                 </motion.span>
-              )}
+            }
             </div>
 
             {/* Tone selector */}
@@ -261,15 +261,15 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
                 <span className="section-label">🎭 Judge's Tone</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {toneOptions.map((opt) => (
-                  <motion.button
-                    key={opt.value}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setTone(opt.value)}
-                    disabled={isLoading}
-                    className={`tone-card ${tone === opt.value ? 'tone-card-active' : ''} disabled:opacity-50`}
-                  >
+                {toneOptions.map((opt) =>
+              <motion.button
+                key={opt.value}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setTone(opt.value)}
+                disabled={isLoading}
+                className={`tone-card ${tone === opt.value ? 'tone-card-active' : ''} disabled:opacity-50`}>
+                
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xl">{opt.emoji}</span>
                       <span className={`text-sm font-semibold ${tone === opt.value ? 'gold-text' : 'text-foreground'}`}>
@@ -278,50 +278,50 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
                     </div>
                     <p className="text-xs text-muted-foreground pl-7">{opt.description}</p>
                   </motion.button>
-                ))}
+              )}
               </div>
             </div>
 
             {/* Submit */}
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleSubmit}
-              disabled={situation.trim().length < 20 || isLoading}
-              className="gavel-button w-full text-lg tracking-wide disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-2"
-            >
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleSubmit}
+            disabled={situation.trim().length < 20 || isLoading}
+            className="gavel-button w-full text-lg tracking-wide disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-2">
+            
               <AnimatePresence mode="wait">
-                {isLoading ? (
-                  <motion.span
-                    key="loading"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex items-center gap-3"
-                  >
+                {isLoading ?
+              <motion.span
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-3">
+                
                     <motion.span
-                      animate={{ rotate: [0, -25, 0, 25, 0] }}
-                      transition={{ repeat: Infinity, duration: 0.5 }}
-                      className="text-2xl"
-                    >
+                  animate={{ rotate: [0, -25, 0, 25, 0] }}
+                  transition={{ repeat: Infinity, duration: 0.5 }}
+                  className="text-2xl">
+                  
                       🔨
                     </motion.span>
                     Summoning the Council...
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="ready"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                  >
+                  </motion.span> :
+
+              <motion.span
+                key="ready"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}>
+                
                     🔨 Summon the AI Council
                   </motion.span>
-                )}
+              }
               </AnimatePresence>
             </motion.button>
           </motion.div>
-        )}
+        }
       </AnimatePresence>
 
       {/* Footer */}
@@ -329,10 +329,10 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.4 }}
         transition={{ delay: 1.2 }}
-        className="text-center text-xs text-muted-foreground mt-8"
-      >
+        className="text-center text-xs text-muted-foreground mt-8">
+        
         For entertainment only · 5 AI agents, zero chill 💀
       </motion.p>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
