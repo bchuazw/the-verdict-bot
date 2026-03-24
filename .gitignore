@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Rendered videos (large files, keep locally)
+*.mp4
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

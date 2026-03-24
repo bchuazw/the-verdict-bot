@@ -8,6 +8,8 @@ export interface Verdict {
   perspectiveFlip: string;
   lesson: string;
   oneLiner: string;
+  pettyScore?: number;
+  redFlagCount?: number;
 }
 
 export const verdictMeta: Record<VerdictType, { label: string; emoji: string; colorClass: string }> = {
