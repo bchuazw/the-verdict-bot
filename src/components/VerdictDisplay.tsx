@@ -5,6 +5,7 @@ import { verdictMeta } from '@/lib/verdict-types';
 import { triggerVerdictEffect, triggerRainEffect } from '@/lib/verdict-effects';
 import AssholeMeter from './AssholeMeter';
 import ShareCard from './ShareCard';
+import TwitterVideoButton from './TwitterVideoButton';
 
 interface VerdictDisplayProps {
   verdict: Verdict;
@@ -59,7 +60,7 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
         className="ornament"
       >
         <span className="text-sm uppercase tracking-[0.3em] text-muted-foreground font-medium">
-          The Court Has Spoken
+          The Council Has Spoken
         </span>
       </motion.div>
 
@@ -92,9 +93,7 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
           >
             <h2
               className={`text-6xl md:text-7xl font-display font-black ${meta.colorClass} tracking-tight`}
-              style={{
-                textShadow: `0 0 40px hsl(var(${glowVar}) / 0.3)`,
-              }}
+              style={{ textShadow: `0 0 40px hsl(var(${glowVar}) / 0.3)` }}
             >
               {verdict.type}
             </h2>
@@ -110,7 +109,7 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
             transition={{ delay: 0.6 }}
             className="flex items-center justify-center gap-2"
           >
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Confidence</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Council Consensus</span>
             <span className="font-mono font-bold text-lg gold-text">{verdict.confidence}%</span>
           </motion.div>
         </div>
@@ -167,25 +166,30 @@ export default function VerdictDisplay({ verdict, onNewCase }: VerdictDisplayPro
         </p>
       </motion.div>
 
-      {/* Share */}
+      {/* Twitter Video Button */}
       <motion.div custom={5} variants={sectionVariants} initial="hidden" animate="visible">
+        <TwitterVideoButton verdict={verdict} />
+      </motion.div>
+
+      {/* Share */}
+      <motion.div custom={6} variants={sectionVariants} initial="hidden" animate="visible">
         <ShareCard verdict={verdict} ref={shareRef} />
       </motion.div>
 
       {/* New case button */}
-      <motion.div custom={6} variants={sectionVariants} initial="hidden" animate="visible" className="pt-2">
+      <motion.div custom={7} variants={sectionVariants} initial="hidden" animate="visible" className="pt-2">
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
           onClick={onNewCase}
           className="gavel-button w-full text-base"
         >
-          ⚖️ New Case
+          ⚖️ Judge Another Case
         </motion.button>
       </motion.div>
 
       <p className="text-center text-xs text-muted-foreground opacity-40 pb-10">
-        For entertainment only · Not legal or therapeutic advice
+        For entertainment only · Not legal or therapeutic advice · 5 AI agents, zero chill 💀
       </p>
     </motion.div>
   );

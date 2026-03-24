@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ToneType } from '@/lib/verdict-engine';
 import { toneOptions } from '@/lib/verdict-engine';
+import RedditLinkInput from './RedditLinkInput';
 
 interface CaseInputProps {
   onSubmit: (situation: string, tone: ToneType) => void;
@@ -11,44 +12,51 @@ interface CaseInputProps {
 const placeholders = [
   "My roommate keeps eating my labeled food...",
   "I didn't invite my toxic aunt to my wedding...",
-  "I got promoted over the coworker who trained me...",
   "I told my friend their business idea was bad...",
   "I refused to lend money to my sibling again...",
 ];
 
-const typingTexts = [
-  "Tell the court what happened...",
-  "Describe the situation honestly...",
-  "Spill the tea, the whole cup...",
+const roastingSubtitles = [
+  "Drop the drama. We'll judge it. 💅",
+  "No cap, we're brutally honest. 💀",
+  "5 AI agents. 1 verdict. Zero mercy. 🔥",
+  "Your story. Their opinions. Maximum chaos. 🤡",
 ];
 
 export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
   const [situation, setSituation] = useState('');
   const [tone, setTone] = useState<ToneType>('sassy');
   const [placeholder] = useState(() => placeholders[Math.floor(Math.random() * placeholders.length)]);
-  const [typingText, setTypingText] = useState('');
-  const [typingIdx, setTypingIdx] = useState(0);
+  const [inputMode, setInputMode] = useState<'choose' | 'reddit' | 'manual'>('choose');
+  const [subtitleIdx, setSubtitleIdx] = useState(0);
+  const [displayedSubtitle, setDisplayedSubtitle] = useState('');
 
-  // Animated typing effect for subtitle
+  // Cycling subtitle animation
   useEffect(() => {
-    const text = typingTexts[typingIdx % typingTexts.length];
+    const text = roastingSubtitles[subtitleIdx % roastingSubtitles.length];
     let i = 0;
-    setTypingText('');
+    setDisplayedSubtitle('');
     const interval = setInterval(() => {
       if (i <= text.length) {
-        setTypingText(text.slice(0, i));
+        setDisplayedSubtitle(text.slice(0, i));
         i++;
       } else {
         clearInterval(interval);
-        setTimeout(() => setTypingIdx(prev => prev + 1), 3000);
+        setTimeout(() => setSubtitleIdx(prev => prev + 1), 3000);
       }
-    }, 60);
+    }, 50);
     return () => clearInterval(interval);
-  }, [typingIdx]);
+  }, [subtitleIdx]);
 
   const handleSubmit = () => {
     if (situation.trim().length < 20) return;
     onSubmit(situation.trim(), tone);
+  };
+
+  const handleRedditPaste = (url: string) => {
+    // Simulate: in a real app, this would fetch the post content
+    setSituation(`[Reddit Post] ${url}\n\nAITA for doing something that made my friend upset? So basically, I told them the truth about their cooking and now they won't talk to me. I was just being honest but my other friends say I was too harsh. The food was genuinely bad and I thought they'd want honest feedback rather than fake praise...`);
+    setInputMode('manual');
   };
 
   return (
@@ -59,145 +67,262 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
       className="w-full max-w-2xl mx-auto"
     >
       {/* Header */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-10">
+        {/* Bouncing gavel */}
         <motion.div
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ delay: 0.1, duration: 0.8, type: 'spring', damping: 10 }}
-          className="text-7xl mb-6 inline-block"
+          className="text-7xl mb-4 inline-block"
         >
-          ⚖️
+          <motion.span
+            animate={{ rotate: [0, -15, 15, -10, 10, 0] }}
+            transition={{ duration: 3, repeat: Infinity, repeatDelay: 2 }}
+            className="inline-block"
+          >
+            ⚖️
+          </motion.span>
         </motion.div>
 
         <motion.h1
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
-          className="text-5xl md:text-6xl font-display font-black tracking-tight mb-4"
+          className="text-5xl md:text-7xl font-display font-black tracking-tight mb-3"
         >
           <span className="gold-text">Am I The</span>
           <br />
-          <span className="gold-text">Asshole?</span>
+          <motion.span
+            className="gold-text inline-block"
+            animate={{ scale: [1, 1.02, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            Asshole?
+          </motion.span>
         </motion.h1>
 
+        {/* Meme badge */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="ornament mb-4"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5, type: 'spring', damping: 8 }}
+          className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-mono border"
+          style={{
+            background: 'hsl(var(--gold) / 0.08)',
+            borderColor: 'hsl(var(--gold) / 0.2)',
+          }}
         >
-          <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">AI Judge</span>
+          <span className="text-sm">🤖</span>
+          <span className="gold-text font-bold">5 AI AGENTS</span>
+          <span className="text-muted-foreground">×</span>
+          <span className="text-sm">1 VERDICT</span>
+          <span className="text-sm">💀</span>
         </motion.div>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="text-base text-muted-foreground font-mono h-6"
+          className="text-base text-muted-foreground font-mono h-6 mt-4"
         >
-          {typingText}<span className="animate-pulse">|</span>
+          {displayedSubtitle}<span className="animate-pulse text-gold">|</span>
         </motion.p>
       </div>
 
-      {/* Input */}
-      <div className="space-y-5">
-        <div className="ornament mb-1">
-          <span className="section-label">📋 Present Your Case</span>
-        </div>
+      {/* Input mode selector */}
+      <AnimatePresence mode="wait">
+        {inputMode === 'choose' && (
+          <motion.div
+            key="choose"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-4"
+          >
+            <div className="ornament mb-4">
+              <span className="section-label">📋 Present Your Case</span>
+            </div>
 
-        <textarea
-          className="input-court min-h-[160px]"
-          placeholder={placeholder}
-          value={situation}
-          onChange={(e) => setSituation(e.target.value)}
-          maxLength={2000}
-          disabled={isLoading}
-        />
-
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs text-muted-foreground font-mono">
-            {situation.length}<span className="opacity-40">/2000</span>
-            {situation.length > 0 && situation.length < 20 && (
-              <span className="ml-2 text-verdict-yta">· {20 - situation.length} more chars needed</span>
-            )}
-          </span>
-          {situation.length >= 20 && (
-            <motion.span
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-xs text-verdict-nta"
-            >
-              ✓ Ready
-            </motion.span>
-          )}
-        </div>
-
-        {/* Tone selector */}
-        <div>
-          <div className="ornament mb-4">
-            <span className="section-label">🎭 Judge's Tone</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {toneOptions.map((opt) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Reddit link option */}
               <motion.button
-                key={opt.value}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setTone(opt.value)}
-                disabled={isLoading}
-                className={`tone-card ${tone === opt.value ? 'tone-card-active' : ''} disabled:opacity-50`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xl">{opt.emoji}</span>
-                  <span className={`text-sm font-semibold ${tone === opt.value ? 'gold-text' : 'text-foreground'}`}>
-                    {opt.label}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground pl-7">{opt.description}</p>
-              </motion.button>
-            ))}
-          </div>
-        </div>
-
-        {/* Submit */}
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={handleSubmit}
-          disabled={situation.trim().length < 20 || isLoading}
-          className="gavel-button w-full text-lg tracking-wide disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-2"
-        >
-          <AnimatePresence mode="wait">
-            {isLoading ? (
-              <motion.span
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-3"
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setInputMode('reddit')}
+                className="tone-card text-center py-8 group"
               >
                 <motion.span
-                  animate={{ rotate: [0, -25, 0, 25, 0] }}
-                  transition={{ repeat: Infinity, duration: 0.5 }}
-                  className="text-2xl"
+                  className="text-5xl block mb-3"
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
                 >
-                  🔨
+                  🤖
                 </motion.span>
-                The Court Is Deliberating...
-              </motion.span>
-            ) : (
-              <motion.span
-                key="ready"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                <span className="text-base font-display font-bold text-foreground block">
+                  Paste Reddit Link
+                </span>
+                <span className="text-xs text-muted-foreground mt-1 block">
+                  Drop an r/AITA post URL
+                </span>
+              </motion.button>
+
+              {/* Manual input option */}
+              <motion.button
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setInputMode('manual')}
+                className="tone-card text-center py-8 group"
               >
-                🔨 Deliver The Verdict
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </motion.button>
-      </div>
+                <motion.span
+                  className="text-5xl block mb-3"
+                  animate={{ rotate: [0, 5, -5, 0] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                >
+                  ✍️
+                </motion.span>
+                <span className="text-base font-display font-bold text-foreground block">
+                  Write Your Story
+                </span>
+                <span className="text-xs text-muted-foreground mt-1 block">
+                  Type your situation directly
+                </span>
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        {inputMode === 'reddit' && (
+          <motion.div
+            key="reddit"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="ornament mb-4">
+              <span className="section-label">🔗 Paste Reddit Link</span>
+            </div>
+            <RedditLinkInput
+              onPaste={handleRedditPaste}
+              onSwitchToManual={() => setInputMode('manual')}
+            />
+          </motion.div>
+        )}
+
+        {inputMode === 'manual' && (
+          <motion.div
+            key="manual"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-5"
+          >
+            <div className="flex items-center justify-between">
+              <div className="ornament flex-1">
+                <span className="section-label">📋 Present Your Case</span>
+              </div>
+              <button
+                onClick={() => setInputMode('choose')}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors font-mono"
+              >
+                ← Back
+              </button>
+            </div>
+
+            <textarea
+              className="input-court min-h-[160px]"
+              placeholder={placeholder}
+              value={situation}
+              onChange={(e) => setSituation(e.target.value)}
+              maxLength={2000}
+              disabled={isLoading}
+            />
+
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-muted-foreground font-mono">
+                {situation.length}<span className="opacity-40">/2000</span>
+                {situation.length > 0 && situation.length < 20 && (
+                  <span className="ml-2 text-verdict-yta">· {20 - situation.length} more chars needed</span>
+                )}
+              </span>
+              {situation.length >= 20 && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-xs text-verdict-nta"
+                >
+                  ✓ Ready to be judged
+                </motion.span>
+              )}
+            </div>
+
+            {/* Tone selector */}
+            <div>
+              <div className="ornament mb-4">
+                <span className="section-label">🎭 Judge's Tone</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {toneOptions.map((opt) => (
+                  <motion.button
+                    key={opt.value}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setTone(opt.value)}
+                    disabled={isLoading}
+                    className={`tone-card ${tone === opt.value ? 'tone-card-active' : ''} disabled:opacity-50`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xl">{opt.emoji}</span>
+                      <span className={`text-sm font-semibold ${tone === opt.value ? 'gold-text' : 'text-foreground'}`}>
+                        {opt.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-7">{opt.description}</p>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Submit */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleSubmit}
+              disabled={situation.trim().length < 20 || isLoading}
+              className="gavel-button w-full text-lg tracking-wide disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-2"
+            >
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.span
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center gap-3"
+                  >
+                    <motion.span
+                      animate={{ rotate: [0, -25, 0, 25, 0] }}
+                      transition={{ repeat: Infinity, duration: 0.5 }}
+                      className="text-2xl"
+                    >
+                      🔨
+                    </motion.span>
+                    Summoning the Council...
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="ready"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    🔨 Summon the AI Council
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <motion.p
@@ -206,7 +331,7 @@ export default function CaseInput({ onSubmit, isLoading }: CaseInputProps) {
         transition={{ delay: 1.2 }}
         className="text-center text-xs text-muted-foreground mt-8"
       >
-        For entertainment only · The AI Judge is sassy, not a therapist
+        For entertainment only · 5 AI agents, zero chill 💀
       </motion.p>
     </motion.div>
   );
