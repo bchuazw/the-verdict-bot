@@ -58,6 +58,7 @@ interface VideoDebateMessage {
   color: string;
   startFrame: number;
   endFrame: number;
+  isSummary?: boolean;
 }
 
 /* ════════════════════════════════════════════════════
@@ -347,31 +348,19 @@ function generateOneLiner(label: string): string {
    ════════════════════════════════════════════════════ */
 
 function summarizeSide(comments: ParsedComment[], max = 3): string {
-  const summaries = comments.slice(0, max).map((c) => firstSentence(c.body, 80));
-  return summaries.join(". ") + ".";
-}
-
-function buildGeneralSummary(comments: ParsedComment[], jury: JurySummary): string {
-  const total = Object.values(jury.verdictCounts).reduce((a, b) => a + b, 0);
-  const parts: string[] = [];
-  if (jury.majorityVerdict) {
-    const pct = total > 0 ? Math.round(((jury.verdictCounts[jury.majorityVerdict] ?? 0) / total) * 100) : 0;
-    parts.push(`${pct}% voted ${jury.majorityVerdict}`);
-  }
-  const topGeneral = comments.find(
-    (c) => !c.verdictTag && c.body.length > 20 && c.score > 3,
-  );
-  if (topGeneral) {
-    parts.push(firstSentence(topGeneral.body, 80));
-  } else {
-    parts.push(`${total} comments analyzed`);
-  }
-  return parts.join(". ") + ".";
+  const pieces = comments
+    .slice(0, max)
+    .map((c) => {
+      const s = c.body.split(/[.!?\n]/).filter(Boolean);
+      return s.slice(0, 2).join(". ").trim();
+    })
+    .filter(Boolean);
+  return trunc(pieces.join(". ") + ".", 280);
 }
 
 function buildVideoDebateMessages(
   comments: ParsedComment[],
-  jury: JurySummary,
+  _jury: JurySummary,
   debateStartFrame: number,
   debateEndFrame: number,
   fps: number,
@@ -384,42 +373,75 @@ function buildVideoDebateMessages(
     .sort((a, b) => b.score - a.score);
 
   const msgs: VideoDebateMessage[] = [];
-  let f = debateStartFrame + Math.round(0.6 * fps);
-  const GAP = Math.round(3.5 * fps);
+  let f = debateStartFrame + Math.round(0.5 * fps);
+  const QUOTE_GAP = Math.round(1.8 * fps);
+  const SUMMARY_GAP = Math.round(2.5 * fps);
 
-  const prosText =
-    yta.length > 0
-      ? summarizeSide(yta)
-      : "OP went nuclear. There were better ways to handle this.";
+  if (yta[0]) {
+    msgs.push({
+      displayName: "Prosecutor",
+      text: trunc(yta[0].body, 100),
+      color: "#ef4444",
+      startFrame: f,
+      endFrame: debateEndFrame,
+    });
+    f += QUOTE_GAP;
+  }
+
+  if (nta[0]) {
+    msgs.push({
+      displayName: "Defense",
+      text: trunc(nta[0].body, 100),
+      color: "#22c55e",
+      startFrame: f,
+      endFrame: debateEndFrame,
+    });
+    f += QUOTE_GAP;
+  }
+
+  if (yta[1]) {
+    msgs.push({
+      displayName: "Prosecutor",
+      text: trunc(yta[1].body, 100),
+      color: "#ef4444",
+      startFrame: f,
+      endFrame: debateEndFrame,
+    });
+    f += QUOTE_GAP;
+  }
+
+  if (nta[1]) {
+    msgs.push({
+      displayName: "Defense",
+      text: trunc(nta[1].body, 100),
+      color: "#22c55e",
+      startFrame: f,
+      endFrame: debateEndFrame,
+    });
+    f += QUOTE_GAP;
+  }
+
+  f += SUMMARY_GAP - QUOTE_GAP;
+
+  const prosSummary = summarizeSide(yta);
   msgs.push({
-    displayName: "AI Agent: Prosecution",
-    text: trunc(prosText, 200),
+    displayName: "PROSECUTION SUMMARY",
+    text: prosSummary,
     color: "#ef4444",
     startFrame: f,
     endFrame: debateEndFrame,
+    isSummary: true,
   });
-  f += GAP;
+  f += SUMMARY_GAP;
 
-  const defText =
-    nta.length > 0
-      ? summarizeSide(nta)
-      : "OP set a boundary. That's healthy, not dramatic.";
+  const defSummary = summarizeSide(nta);
   msgs.push({
-    displayName: "AI Agent: Defense",
-    text: trunc(defText, 200),
+    displayName: "DEFENSE SUMMARY",
+    text: defSummary,
     color: "#22c55e",
     startFrame: f,
     endFrame: debateEndFrame,
-  });
-  f += GAP;
-
-  const generalText = buildGeneralSummary(comments, jury);
-  msgs.push({
-    displayName: "Reddit Comments",
-    text: trunc(generalText, 180),
-    color: "#8b5cf6",
-    startFrame: f,
-    endFrame: debateEndFrame,
+    isSummary: true,
   });
 
   return msgs;

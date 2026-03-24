@@ -171,56 +171,6 @@ export const RedditStoryReel: React.FC<RedditStoryReelProps> = (props) => {
         <Audio src={staticFile("audio/gavel-hit.wav")} volume={0.75} />
       </Sequence>
 
-      {/* ── HOOK ── */}
-      {frame < 80 && (
-        <div
-          style={{
-            position: "absolute",
-            top: 50,
-            left: 40,
-            right: 40,
-            opacity: interpolate(frame, [0, 8, 60, 78], [0, 1, 1, 0], {
-              extrapolateRight: "clamp",
-            }),
-            zIndex: 10,
-          }}
-        >
-          <div
-            style={{
-              background: "rgba(26,26,27,0.92)",
-              borderRadius: 16,
-              padding: "16px 22px",
-              backdropFilter: "blur(12px)",
-              border: "1px solid rgba(255,69,0,0.35)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 18,
-                fontWeight: 900,
-                color: "#ff4500",
-                fontFamily: F,
-                marginBottom: 8,
-                letterSpacing: 2,
-              }}
-            >
-              AITAH?!
-            </div>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "#fff",
-                lineHeight: 1.25,
-                fontFamily: F,
-              }}
-            >
-              {hookText}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── STORY CARD ── */}
       <div
         style={{
