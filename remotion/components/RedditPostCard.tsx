@@ -1,4 +1,4 @@
-import { useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame, interpolate, Easing } from "remotion";
 
 export interface StoryChunk {
   text: string;
@@ -6,18 +6,18 @@ export interface StoryChunk {
   endFrame: number;
 }
 
-interface RedditPostCardProps {
+interface Props {
   subreddit: string;
   author: string;
   title: string;
   chunks: StoryChunk[];
 }
 
-const CHUNK_HEIGHT = 88;
-const VISIBLE_CHUNKS = 8;
-const SCROLL_LEAD = 3;
+const CHUNK_HEIGHT = 80;
+const VIEWPORT_CHUNKS = 7;
+const SCROLL_LEAD = 2;
 
-export const RedditPostCard: React.FC<RedditPostCardProps> = ({
+export const RedditPostCard: React.FC<Props> = ({
   subreddit,
   author,
   title,
@@ -28,19 +28,17 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
   const activeIdx = chunks.findIndex(
     (c) => frame >= c.startFrame && frame < c.endFrame,
   );
-  const safeIdx =
-    activeIdx >= 0
-      ? activeIdx
-      : frame < (chunks[0]?.startFrame ?? 0)
-        ? -1
-        : chunks.length - 1;
+  const lastRevealed = chunks.reduce(
+    (max, c, i) => (frame >= c.startFrame ? i : max),
+    -1,
+  );
+  const safeIdx = activeIdx >= 0 ? activeIdx : lastRevealed;
 
   const maxScroll = Math.max(
     0,
-    (chunks.length - VISIBLE_CHUNKS) * CHUNK_HEIGHT,
+    (chunks.length - VIEWPORT_CHUNKS) * CHUNK_HEIGHT,
   );
 
-  // Build scroll keyframes: hold-then-move for each new scroll target
   const scrollTargets = chunks.map((_, i) =>
     Math.min(Math.max(0, (i - SCROLL_LEAD) * CHUNK_HEIGHT), maxScroll),
   );
@@ -51,9 +49,14 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
     const target = scrollTargets[i];
     const prev = kfValues[kfValues.length - 1];
     if (target !== prev) {
-      kfFrames.push(Math.max(chunks[i].startFrame - 1, kfFrames[kfFrames.length - 1] + 1));
+      kfFrames.push(
+        Math.max(
+          chunks[i].startFrame - 1,
+          kfFrames[kfFrames.length - 1] + 1,
+        ),
+      );
       kfValues.push(prev);
-      kfFrames.push(chunks[i].startFrame + 9);
+      kfFrames.push(chunks[i].startFrame + 12);
       kfValues.push(target);
     }
   }
@@ -70,12 +73,12 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
     <div
       style={{
         position: "absolute",
-        top: 140,
-        left: 130,
-        right: 130,
-        height: 1100,
+        top: 160,
+        left: 48,
+        right: 48,
+        bottom: 220,
         background: "rgba(255, 255, 255, 0.97)",
-        borderRadius: 16,
+        borderRadius: 18,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
@@ -85,7 +88,7 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
       {/* Header */}
       <div
         style={{
-          padding: "18px 22px",
+          padding: "16px 20px",
           borderBottom: "1px solid #e5e7eb",
           display: "flex",
           alignItems: "center",
@@ -95,16 +98,16 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
       >
         <div
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
             background: "#ff4500",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "#fff",
             fontWeight: 800,
-            fontSize: 15,
+            fontSize: 14,
             fontFamily: "system-ui, sans-serif",
           }}
         >
@@ -128,7 +131,7 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
               fontFamily: "system-ui, sans-serif",
             }}
           >
-            u/{author} · 12h
+            u/{author}
           </div>
         </div>
       </div>
@@ -136,8 +139,8 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
       {/* Title */}
       <div
         style={{
-          padding: "14px 22px 6px",
-          fontSize: 26,
+          padding: "12px 20px 6px",
+          fontSize: 24,
           fontWeight: 700,
           color: "#1a1a1b",
           lineHeight: 1.22,
@@ -148,42 +151,54 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
         {title}
       </div>
 
-      {/* Body – scrollable chunks */}
+      {/* Body — line-by-line reveal */}
       <div
         style={{
           flex: 1,
-          padding: "6px 22px 20px",
+          padding: "6px 20px 18px",
           overflow: "hidden",
           position: "relative",
         }}
       >
         <div style={{ transform: `translateY(-${scrollY}px)` }}>
           {chunks.map((chunk, i) => {
+            const isRevealed = frame >= chunk.startFrame;
             const isActive = i === safeIdx;
             const isPast = safeIdx >= 0 && i < safeIdx;
+
+            const revealProgress = isRevealed
+              ? interpolate(
+                  frame,
+                  [chunk.startFrame, chunk.startFrame + 10],
+                  [0, 1],
+                  { extrapolateRight: "clamp" },
+                )
+              : 0;
 
             return (
               <div
                 key={i}
                 style={{
-                  fontSize: 24,
-                  lineHeight: 1.38,
+                  fontSize: 22,
+                  lineHeight: 1.42,
                   color: isActive
                     ? "#1a1a1b"
                     : isPast
                       ? "#4a4a4b"
                       : "#9a9a9b",
                   fontWeight: isActive ? 600 : 400,
-                  padding: "5px 8px",
+                  padding: "6px 10px",
                   marginBottom: 4,
                   borderRadius: 6,
                   background: isActive
-                    ? "rgba(255, 69, 0, 0.07)"
+                    ? "rgba(255, 69, 0, 0.08)"
                     : "transparent",
                   borderLeft: isActive
                     ? "3px solid #ff4500"
                     : "3px solid transparent",
                   fontFamily: "system-ui, sans-serif",
+                  opacity: revealProgress,
+                  transform: `translateY(${interpolate(revealProgress, [0, 1], [10, 0])}px)`,
                 }}
               >
                 {chunk.text}
@@ -196,7 +211,7 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
       {/* Bottom metadata */}
       <div
         style={{
-          padding: "10px 22px",
+          padding: "10px 20px",
           borderTop: "1px solid #e5e7eb",
           display: "flex",
           gap: 18,
@@ -206,9 +221,9 @@ export const RedditPostCard: React.FC<RedditPostCardProps> = ({
           flexShrink: 0,
         }}
       >
-        <span>⬆ 2.4k</span>
-        <span>💬 847</span>
-        <span>🔗 Share</span>
+        <span>{"\u2B06"} 2.4k</span>
+        <span>{"\uD83D\uDCAC"} 847</span>
+        <span>{"\uD83D\uDD17"} Share</span>
       </div>
     </div>
   );

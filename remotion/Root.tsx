@@ -6,7 +6,6 @@ import {
 } from "./RedditStoryReel";
 
 export const RemotionRoot: React.FC = () => {
-  /* ── Legacy debate reel defaults ── */
   const debateDefaults: DebateReelProps = {
     hookText:
       "She hijacked the engagement party... with a pregnancy announcement.",
@@ -23,61 +22,38 @@ export const RemotionRoot: React.FC = () => {
     cta: "Was the verdict right?",
   };
 
-  /* ── New story reel defaults (for Remotion preview) ── */
   const storyDefaults: RedditStoryReelProps = {
     subreddit: "AmItheAsshole",
     author: "throwaway_bride2026",
     title: "AITA for Uninviting My Sister to My Wedding",
     hookText: "Am I the asshole for uninviting my sister to my wedding?",
     chunks: [
-      {
-        text: "I'm getting married next month. My sister has always been competitive.",
-        startFrame: 90,
-        endFrame: 250,
-      },
-      {
-        text: "At my engagement party she grabbed the mic during toasts and announced she was pregnant.",
-        startFrame: 250,
-        endFrame: 430,
-      },
-      {
-        text: "The rest of the night became about her. I was devastated.",
-        startFrame: 430,
-        endFrame: 580,
-      },
-      {
-        text: "When I confronted her, she said I was being selfish and that a baby is bigger news than a wedding.",
-        startFrame: 580,
-        endFrame: 760,
-      },
-      {
-        text: "I uninvited her from the wedding. Our parents are threatening to boycott if she isn't reinvited.",
-        startFrame: 760,
-        endFrame: 940,
-      },
-      {
-        text: "My fiancé supports me completely. He says she showed her true colors.",
-        startFrame: 940,
-        endFrame: 1100,
-      },
-      {
-        text: "I don't want drama on my wedding day. But I also don't want to lose my whole family over this.",
-        startFrame: 1100,
-        endFrame: 1300,
-      },
+      { text: "I'm getting married next month. My sister has always been competitive.", startFrame: 90, endFrame: 250 },
+      { text: "At my engagement party she grabbed the mic and announced she was pregnant.", startFrame: 250, endFrame: 430 },
+      { text: "The rest of the night became about her. I was devastated.", startFrame: 430, endFrame: 580 },
+      { text: "She said I was being selfish and that a baby is bigger news than a wedding.", startFrame: 580, endFrame: 760 },
+      { text: "I uninvited her. Our parents are threatening to boycott.", startFrame: 760, endFrame: 940 },
     ],
+    debateMessages: [
+      { displayName: "The Prosecutor", text: "OP went nuclear over one bad night. Family is permanent.", color: "#ef4444", startFrame: 1050 },
+      { displayName: "The Defense", text: "She literally hijacked the engagement party. NTA all day.", color: "#22c55e", startFrame: 1130 },
+      { displayName: "The Internet", text: "The audacity is ASTRONOMICAL. NTA.", color: "#8b5cf6", startFrame: 1210 },
+    ],
+    debateStartFrame: 1000,
+    debateEndFrame: 1350,
     verdictLabel: "NTA",
     verdictOneLiner: "She stole your spotlight and called you selfish.",
-    verdictStartFrame: 1500,
-    ctaText: "Was the verdict right? Drop yours below.",
-    ctaStartFrame: 1680,
+    verdictStartFrame: 1400,
+    verdictColor: "#22c55e",
+    ctaText: "Do you agree? Drop your verdict below.",
+    ctaStartFrame: 1600,
     narrationSrc: "",
     audioOffsetFrames: 15,
+    hasVideoBackground: false,
   };
 
   return (
     <>
-      {/* ─── Primary: Reddit Story Reel ─── */}
       <Composition
         id="RedditStoryReel60"
         component={RedditStoryReel}
@@ -87,8 +63,6 @@ export const RemotionRoot: React.FC = () => {
         height={1920}
         defaultProps={storyDefaults}
       />
-
-      {/* ─── Legacy debate reels ─── */}
       <Composition
         id="DebateReel30"
         component={DebateReel}

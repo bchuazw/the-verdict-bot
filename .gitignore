@@ -20,6 +20,9 @@ dist-ssr
 # Generated audio / assets
 public/generated/
 
+# Background video (large, downloaded locally)
+public/video/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

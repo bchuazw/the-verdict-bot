@@ -13,9 +13,9 @@ const ROOT = path.resolve(__dirname, "..");
 const PUBLIC = path.resolve(ROOT, "public");
 const GEN = path.resolve(PUBLIC, "generated");
 
-/* ────────────────────────────────────────────────── */
-/*  Reddit JSON API – fetch public post               */
-/* ────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Types
+   ════════════════════════════════════════════════════ */
 
 interface ScrapedPost {
   title: string;
@@ -24,29 +24,118 @@ interface ScrapedPost {
   author: string;
 }
 
-async function fetchRedditPost(url: string): Promise<ScrapedPost> {
+interface ParsedComment {
+  author: string;
+  body: string;
+  score: number;
+  verdictTag: string | null;
+}
+
+interface JurySummary {
+  analyzedCount: number;
+  verdictCounts: Record<string, number>;
+  majorityVerdict: string | null;
+}
+
+interface TTSResult {
+  durationSec: number;
+  alignment: {
+    characters: string[];
+    character_start_times_seconds: number[];
+    character_end_times_seconds: number[];
+  } | null;
+}
+
+interface TimedChunk {
+  text: string;
+  startSec: number;
+  endSec: number;
+}
+
+interface VideoDebateMessage {
+  displayName: string;
+  text: string;
+  color: string;
+  startFrame: number;
+}
+
+/* ════════════════════════════════════════════════════
+   Reddit JSON API — fetch post + comments
+   ════════════════════════════════════════════════════ */
+
+function extractVerdictTag(body: string): string | null {
+  const m = body.slice(0, 300).match(/\b(NTA|YTA|ESH|NAH|INFO)\b/);
+  return m ? m[1].toUpperCase() : null;
+}
+
+async function fetchRedditData(
+  url: string,
+): Promise<{ post: ScrapedPost; comments: ParsedComment[] }> {
   const jsonUrl = url.replace(/\/?(\?.*)?$/, ".json");
   console.log(`  Fetching: ${jsonUrl}`);
   const res = await fetch(jsonUrl, {
     headers: { "User-Agent": "AITAH-Hackathon/1.0" },
   });
   if (!res.ok) throw new Error(`Reddit API ${res.status}`);
-
   const data = await res.json();
-  const post = data?.[0]?.data?.children?.[0]?.data;
-  if (!post) throw new Error("Could not parse Reddit JSON response");
 
-  return {
-    title: post.title ?? "Untitled",
-    body: (post.selftext ?? "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
-    subreddit: post.subreddit ?? "AITAH",
-    author: post.author ?? "throwaway_poster",
+  const pd = data?.[0]?.data?.children?.[0]?.data;
+  if (!pd) throw new Error("Could not parse Reddit JSON");
+
+  const clean = (s: string) =>
+    s
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&#x200B;/g, "");
+
+  const post: ScrapedPost = {
+    title: pd.title ?? "Untitled",
+    body: clean(pd.selftext ?? ""),
+    subreddit: pd.subreddit ?? "AITAH",
+    author: pd.author ?? "throwaway_poster",
   };
+
+  const rawComments = data?.[1]?.data?.children ?? [];
+  const comments: ParsedComment[] = rawComments
+    .filter((c: any) => c.kind === "t1")
+    .map((c: any) => c.data)
+    .filter(
+      (d: any) =>
+        d.author !== "AutoModerator" &&
+        d.author !== "[deleted]" &&
+        d.body !== "[removed]" &&
+        d.body !== "[deleted]",
+    )
+    .map((d: any) => ({
+      author: d.author as string,
+      body: clean(d.body ?? ""),
+      score: (d.score as number) ?? 0,
+      verdictTag: extractVerdictTag(d.body ?? ""),
+    }))
+    .sort((a: ParsedComment, b: ParsedComment) => b.score - a.score);
+
+  return { post, comments };
 }
 
-/* ────────────────────────────────────────────────── */
-/*  Firecrawl – search for related receipts           */
-/* ────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Jury computation
+   ════════════════════════════════════════════════════ */
+
+function computeJury(comments: ParsedComment[]): JurySummary {
+  const counts: Record<string, number> = {};
+  for (const c of comments) {
+    if (c.verdictTag) counts[c.verdictTag] = (counts[c.verdictTag] || 0) + 1;
+  }
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const majority =
+    Object.entries(counts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? null;
+  return { analyzedCount: total, verdictCounts: counts, majorityVerdict: majority };
+}
+
+/* ════════════════════════════════════════════════════
+   Firecrawl receipts
+   ════════════════════════════════════════════════════ */
 
 interface FirecrawlReceipt {
   title: string;
@@ -58,11 +147,7 @@ async function searchFirecrawlReceipts(
   query: string,
 ): Promise<FirecrawlReceipt[]> {
   const key = process.env.FIRECRAWL_API_KEY;
-  if (!key) {
-    console.log("  FIRECRAWL_API_KEY not set, skipping receipts");
-    return [];
-  }
-
+  if (!key) return [];
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/search", {
       method: "POST",
@@ -72,38 +157,100 @@ async function searchFirecrawlReceipts(
       },
       body: JSON.stringify({ query, limit: 3 }),
     });
-    if (!res.ok) {
-      console.log(`  Firecrawl search ${res.status}, continuing without receipts`);
-      return [];
-    }
+    if (!res.ok) return [];
     const json = await res.json();
-    const results: FirecrawlReceipt[] = (json?.data ?? []).map(
-      (r: Record<string, unknown>) => ({
-        title: (r.title as string) ?? "",
-        url: (r.url as string) ?? "",
-        snippet: ((r.markdown ?? r.description ?? "") as string).slice(0, 200),
-      }),
-    );
-    console.log(`  Firecrawl found ${results.length} related result(s)`);
-    return results;
-  } catch (e: unknown) {
-    console.log(
-      `  Firecrawl search error: ${e instanceof Error ? e.message : e}`,
-    );
+    return ((json as any)?.data ?? []).map((r: any) => ({
+      title: (r.title ?? "") as string,
+      url: (r.url ?? "") as string,
+      snippet: ((r.markdown ?? r.description ?? "") as string).slice(0, 200),
+    }));
+  } catch {
     return [];
   }
 }
 
-/* ────────────────────────────────────────────────── */
-/*  Text processing                                   */
-/* ────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Gender detection via MiniMax
+   ════════════════════════════════════════════════════ */
+
+async function detectGender(
+  text: string,
+): Promise<"male" | "female" | "unknown"> {
+  const regexMatch = text.match(/\((\d+)\s*([MmFf])\)/);
+  if (regexMatch) {
+    const g = regexMatch[2].toLowerCase() === "m" ? "male" : "female";
+    console.log(`  Regex detected: ${g} (from ${regexMatch[0]})`);
+    return g as "male" | "female";
+  }
+
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    console.log("  MINIMAX_API_KEY not set, defaulting to unknown");
+    return "unknown";
+  }
+
+  try {
+    const res = await fetch(
+      "https://api.minimax.io/v1/text/chatcompletion_v2",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "MiniMax-M2",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Detect the original poster's gender from this Reddit post. Look for age/gender patterns like (23M), (20F), pronouns, or contextual clues like 'my husband' (female OP) or 'my wife' (male OP). Reply with EXACTLY one word: male, female, or unknown.",
+            },
+            { role: "user", content: text.slice(0, 800) },
+          ],
+          max_tokens: 5,
+          temperature: 0.1,
+        }),
+      },
+    );
+
+    if (!res.ok) throw new Error(`MiniMax HTTP ${res.status}`);
+    const data = await res.json();
+    const answer = (
+      data.choices?.[0]?.message?.content ?? "unknown"
+    )
+      .toLowerCase()
+      .trim();
+    if (answer.includes("female")) return "female";
+    if (answer.includes("male") && !answer.includes("female")) return "male";
+    return "unknown";
+  } catch (e: unknown) {
+    console.log(
+      `  MiniMax failed: ${e instanceof Error ? e.message : e}, using unknown`,
+    );
+    return "unknown";
+  }
+}
+
+function selectVoice(gender: "male" | "female" | "unknown"): string {
+  const m = process.env.ELEVENLABS_MALE_VOICE_ID;
+  const f = process.env.ELEVENLABS_FEMALE_VOICE_ID;
+  const def = process.env.ELEVENLABS_NARRATOR_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
+  if (gender === "male" && m) return m;
+  if (gender === "female" && f) return f;
+  return def;
+}
+
+/* ════════════════════════════════════════════════════
+   Text processing
+   ════════════════════════════════════════════════════ */
 
 function condense(text: string, maxWords: number): string {
   const words = text.split(/\s+/);
   if (words.length <= maxWords) return text;
   const cut = words.slice(0, maxWords).join(" ");
-  const lastPeriod = cut.lastIndexOf(".");
-  return lastPeriod > cut.length * 0.6 ? cut.slice(0, lastPeriod + 1) : cut;
+  const lp = cut.lastIndexOf(".");
+  return lp > cut.length * 0.6 ? cut.slice(0, lp + 1) : cut;
 }
 
 function chunkStory(text: string, target = 14): string[] {
@@ -140,24 +287,154 @@ function chunkStory(text: string, target = 14): string[] {
   return out;
 }
 
-/* ────────────────────────────────────────────────── */
-/*  ElevenLabs TTS                                    */
-/* ────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Debate narration (brief summary for TTS)
+   ════════════════════════════════════════════════════ */
 
-interface TTSResult {
-  durationSec: number;
-  alignment: {
-    characters: string[];
-    character_start_times_seconds: number[];
-    character_end_times_seconds: number[];
-  } | null;
+function trunc(s: string, max = 120): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const last = cut.lastIndexOf(" ");
+  return (last > max * 0.5 ? cut.slice(0, last) : cut) + "...";
 }
 
-async function generateTTS(text: string): Promise<TTSResult> {
+function firstSentence(text: string, max = 65): string {
+  const s = text.split(/[.!?\n]/)[0].trim();
+  return s.length > max ? s.slice(0, max) + "..." : s;
+}
+
+function buildDebateNarration(comments: ParsedComment[]): string {
+  const nta = comments
+    .filter((c) => c.verdictTag === "NTA")
+    .sort((a, b) => b.score - a.score);
+  const yta = comments
+    .filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH")
+    .sort((a, b) => b.score - a.score);
+
+  if (yta.length > 0 && nta.length > 0) {
+    return `Reddit went in on this one. One side says: ${firstSentence(yta[0].body)}. But the defense fires back: ${firstSentence(nta[0].body)}.`;
+  }
+  if (nta.length > 0) {
+    return "Reddit overwhelmingly sided with OP. Almost nobody was calling them out.";
+  }
+  return "Reddit was divided on this one. The comments were a battleground.";
+}
+
+function generateOneLiner(label: string): string {
+  const t: Record<string, string[]> = {
+    NTA: [
+      "Boundaries aren't optional, they're the bare minimum.",
+      "You protected your peace. That's not selfish, that's survival.",
+    ],
+    YTA: [
+      "Sometimes the call IS coming from inside the house.",
+      "Self-awareness is free, but apparently out of stock.",
+    ],
+    ESH: [
+      "Everyone in this story needs a timeout.",
+      "Two wrongs don't make a right, but they do make a Reddit post.",
+    ],
+  };
+  const opts = t[label] ?? t.NTA!;
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+
+/* ════════════════════════════════════════════════════
+   Build video debate messages (visual chat bubbles)
+   ════════════════════════════════════════════════════ */
+
+function buildVideoDebateMessages(
+  comments: ParsedComment[],
+  debateStartFrame: number,
+  fps: number,
+): VideoDebateMessage[] {
+  const nta = comments
+    .filter((c) => c.verdictTag === "NTA")
+    .sort((a, b) => b.score - a.score);
+  const yta = comments
+    .filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH")
+    .sort((a, b) => b.score - a.score);
+  const top = [...comments].sort((a, b) => b.score - a.score);
+
+  const msgs: VideoDebateMessage[] = [];
+  let f = debateStartFrame + Math.round(1 * fps);
+  const GAP = Math.round(2.8 * fps);
+
+  if (yta.length > 0) {
+    msgs.push({
+      displayName: "The Prosecutor",
+      text: trunc(yta[0].body),
+      color: "#ef4444",
+      startFrame: f,
+    });
+  } else {
+    msgs.push({
+      displayName: "The Prosecutor",
+      text: "OP went nuclear. There were better ways to handle this.",
+      color: "#ef4444",
+      startFrame: f,
+    });
+  }
+  f += GAP;
+
+  if (nta.length > 0) {
+    msgs.push({
+      displayName: "The Defense",
+      text: trunc(nta[0].body),
+      color: "#22c55e",
+      startFrame: f,
+    });
+  } else {
+    msgs.push({
+      displayName: "The Defense",
+      text: "OP set a boundary. That's healthy, not dramatic.",
+      color: "#22c55e",
+      startFrame: f,
+    });
+  }
+  f += GAP;
+
+  const funny =
+    top.find((c) => c.body.length < 200 && c.score > 10) ?? top[0];
+  if (funny) {
+    msgs.push({
+      displayName: "The Internet",
+      text: trunc(funny.body),
+      color: "#8b5cf6",
+      startFrame: f,
+    });
+    f += GAP;
+  }
+
+  if (yta.length > 1) {
+    msgs.push({
+      displayName: "The Prosecutor",
+      text: trunc(yta[1].body),
+      color: "#ef4444",
+      startFrame: f,
+    });
+    f += GAP;
+  }
+
+  if (nta.length > 1) {
+    msgs.push({
+      displayName: "The Defense",
+      text: trunc(nta[1].body),
+      color: "#22c55e",
+      startFrame: f,
+    });
+  }
+
+  return msgs;
+}
+
+/* ════════════════════════════════════════════════════
+   ElevenLabs TTS
+   ════════════════════════════════════════════════════ */
+
+async function generateTTS(text: string, voiceId: string): Promise<TTSResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not set in .env");
-  const voiceId =
-    process.env.ELEVENLABS_NARRATOR_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
 
   const payload = {
     text,
@@ -170,7 +447,6 @@ async function generateTTS(text: string): Promise<TTSResult> {
     },
   };
 
-  /* Try with-timestamps first */
   try {
     console.log("  Trying with-timestamps endpoint...");
     const res = await fetch(
@@ -184,26 +460,23 @@ async function generateTTS(text: string): Promise<TTSResult> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    const audioBuffer = Buffer.from(data.audio_base64, "base64");
-    fs.writeFileSync(path.join(GEN, "narration.mp3"), audioBuffer);
-    console.log(
-      `  Audio saved (${(audioBuffer.length / 1024).toFixed(0)} KB)`,
-    );
+    const buf = Buffer.from(data.audio_base64, "base64");
+    fs.writeFileSync(path.join(GEN, "narration.mp3"), buf);
+    console.log(`  Audio saved (${(buf.length / 1024).toFixed(0)} KB)`);
 
     const endTimes: number[] | undefined =
       data.alignment?.character_end_times_seconds;
     const dur = endTimes?.length
       ? endTimes[endTimes.length - 1]
-      : (audioBuffer.length * 8) / 128_000;
+      : (buf.length * 8) / 128_000;
 
     return { durationSec: dur, alignment: data.alignment ?? null };
   } catch (e: unknown) {
     console.log(
-      `  Timestamps endpoint unavailable (${e instanceof Error ? e.message : e}), falling back...`,
+      `  Timestamps unavailable (${e instanceof Error ? e.message : e}), fallback...`,
     );
   }
 
-  /* Fallback: regular TTS */
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
     {
@@ -212,24 +485,29 @@ async function generateTTS(text: string): Promise<TTSResult> {
       body: JSON.stringify(payload),
     },
   );
-  if (!res.ok) throw new Error(`ElevenLabs TTS ${res.status}: ${await res.text()}`);
+  if (!res.ok)
+    throw new Error(`ElevenLabs TTS ${res.status}: ${await res.text()}`);
 
-  const audioBuffer = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(path.join(GEN, "narration.mp3"), audioBuffer);
-  console.log(`  Audio saved (${(audioBuffer.length / 1024).toFixed(0)} KB)`);
-
-  const dur = (audioBuffer.length * 8) / 128_000;
-  return { durationSec: dur, alignment: null };
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(path.join(GEN, "narration.mp3"), buf);
+  console.log(`  Audio saved (${(buf.length / 1024).toFixed(0)} KB)`);
+  return { durationSec: (buf.length * 8) / 128_000, alignment: null };
 }
 
-/* ────────────────────────────────────────────────── */
-/*  Chunk timing from alignment or proportional       */
-/* ────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Timing helpers
+   ════════════════════════════════════════════════════ */
 
-interface TimedChunk {
-  text: string;
-  startSec: number;
-  endSec: number;
+function findTextTimestamp(
+  alignment: TTSResult["alignment"],
+  fullText: string,
+  searchText: string,
+): number | null {
+  if (!alignment) return null;
+  const idx = fullText.indexOf(searchText);
+  if (idx < 0) return null;
+  const ci = Math.min(idx, alignment.character_start_times_seconds.length - 1);
+  return alignment.character_start_times_seconds[ci] ?? null;
 }
 
 function mapChunkTiming(
@@ -248,29 +526,21 @@ function mapChunkTiming(
     for (const text of chunks) {
       const idx = fullText.indexOf(text, search);
       if (idx < 0) continue;
-      const startCharIdx = Math.min(idx, charStarts.length - 1);
-      const endCharIdx = Math.min(
-        idx + text.length - 1,
-        charEnds.length - 1,
-      );
+      const si = Math.min(idx, charStarts.length - 1);
+      const ei = Math.min(idx + text.length - 1, charEnds.length - 1);
       result.push({
         text,
-        startSec: charStarts[startCharIdx] ?? 0,
-        endSec: (charEnds[endCharIdx] ?? 0) + 0.25,
+        startSec: charStarts[si] ?? 0,
+        endSec: (charEnds[ei] ?? 0) + 0.25,
       });
       search = idx + text.length;
     }
     if (result.length > 0) return result;
   }
 
-  /* Proportional fallback */
-  const totalWords = chunks.reduce(
-    (s, c) => s + c.split(/\s+/).length,
-    0,
-  );
+  const totalWords = chunks.reduce((s, c) => s + c.split(/\s+/).length, 0);
   const fullWords = fullText.split(/\s+/).length;
   const storyDurSec = audioDur * (totalWords / fullWords);
-
   let offset = storyStartSec;
   return chunks.map((text) => {
     const wc = text.split(/\s+/).length;
@@ -281,9 +551,9 @@ function mapChunkTiming(
   });
 }
 
-/* ────────────────────────────────────────────────── */
-/*  Main                                              */
-/* ────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   Main
+   ════════════════════════════════════════════════════ */
 
 async function main() {
   const redditUrl =
@@ -292,49 +562,80 @@ async function main() {
 
   fs.mkdirSync(GEN, { recursive: true });
 
-  /* ── 1a. Fetch post from Reddit ── */
-  console.log("\n📥 Step 1a — Fetching Reddit post...");
-  const post = await fetchRedditPost(redditUrl);
-  console.log(`  Title : ${post.title}`);
-  console.log(`  Body  : ${post.body.slice(0, 120)}...`);
-  console.log(`  r/${post.subreddit} · u/${post.author}`);
+  /* ── 1. Fetch post + comments ── */
+  console.log("\n\u{1F4E5} Step 1 \u2014 Fetching Reddit thread...");
+  const { post, comments } = await fetchRedditData(redditUrl);
+  console.log(`  Title   : ${post.title}`);
+  console.log(`  Body    : ${post.body.slice(0, 100)}...`);
+  console.log(`  Comments: ${comments.length}`);
 
-  /* ── 1b. Firecrawl receipts ── */
-  console.log("\n🔥 Step 1b — Searching related receipts with Firecrawl...");
-  const receipts = await searchFirecrawlReceipts(
-    `${post.title} reddit AITA wedding etiquette`,
+  /* ── 2. Jury ── */
+  const jury = computeJury(comments);
+  const verdictLabel = jury.majorityVerdict ?? "NTA";
+  const verdictColor =
+    verdictLabel === "NTA"
+      ? "#22c55e"
+      : verdictLabel === "YTA"
+        ? "#ef4444"
+        : verdictLabel === "ESH"
+          ? "#f59e0b"
+          : "#3b82f6";
+  console.log(
+    `  Jury    : ${JSON.stringify(jury.verdictCounts)} \u2192 ${verdictLabel}`,
   );
-  receipts.forEach((r) => console.log(`  📎 ${r.title.slice(0, 60)}`));
 
-  /* ── 2. Text processing ── */
-  console.log("\n✂️  Step 2 — Chunking story...");
+  /* ── 3. Firecrawl ── */
+  console.log("\n\u{1F525} Step 2 \u2014 Searching receipts...");
+  const receipts = await searchFirecrawlReceipts(
+    `${post.title} reddit AITA`,
+  );
+  console.log(`  Found ${receipts.length} receipt(s)`);
+
+  /* ── 4. Detect gender + select voice ── */
+  console.log("\n\u{1F9E0} Step 3 \u2014 Detecting poster gender...");
+  const gender = await detectGender(`${post.title}\n${post.body}`);
+  const voiceId = selectVoice(gender);
+  console.log(`  Gender  : ${gender}`);
+  console.log(`  Voice   : ${voiceId}`);
+
+  /* ── 5. Text processing ── */
+  console.log("\n\u2702\uFE0F  Step 4 \u2014 Processing text...");
   const condensed = condense(post.body, 140);
   const chunks = chunkStory(condensed);
-  console.log(`  Chunks: ${chunks.length}`);
+  console.log(`  Chunks  : ${chunks.length}`);
   chunks.forEach((c, i) => console.log(`    [${i}] ${c.slice(0, 70)}`));
 
-  /* ── 3. Build narration text ── */
+  /* ── 6. Build narration ── */
   const hookLine = post.title
     .replace(/^AITA\s/i, "Am I the asshole ")
     .replace(/\??\s*$/, "?");
-  const storyText = chunks.join(". ");
-  const verdictLine = "The verdict? Not the asshole.";
-  const oneLiner = "She stole the spotlight and called you selfish.";
-  const ctaLine = "Was the verdict right? Drop yours below.";
-  const fullNarration = `${hookLine} ${storyText} ${verdictLine} ${oneLiner} ${ctaLine}`;
-  console.log(
-    `\n  Narration: ${fullNarration.split(/\s+/).length} words`,
-  );
+  const storyText = chunks.join(" ");
+  const debateNarration = buildDebateNarration(comments);
+  const oneLiner = generateOneLiner(verdictLabel);
+  const verdictNarration = `And the verdict is in. ${verdictLabel}. ${oneLiner}`;
+  const ctaLine = "Do you agree? Drop your verdict in the comments.";
 
-  /* ── 4. ElevenLabs TTS ── */
-  console.log("\n🎤 Step 3 — Generating narration with ElevenLabs...");
-  const tts = await generateTTS(fullNarration);
-  console.log(`  Duration: ${tts.durationSec.toFixed(1)}s`);
+  const fullNarration = [
+    hookLine,
+    "Here's what happened.",
+    storyText,
+    debateNarration,
+    verdictNarration,
+    ctaLine,
+  ].join(" ");
 
-  /* ── 5. Timing ── */
-  console.log("\n⏱️  Step 4 — Calculating timing...");
+  console.log(`  Narration: ${fullNarration.split(/\s+/).length} words`);
+
+  /* ── 7. TTS ── */
+  console.log("\n\u{1F3A4} Step 5 \u2014 Generating TTS...");
+  const tts = await generateTTS(fullNarration, voiceId);
+  console.log(`  Duration : ${tts.durationSec.toFixed(1)}s`);
+
+  /* ── 8. Timing ── */
+  console.log("\n\u23F1\uFE0F  Step 6 \u2014 Calculating timing...");
   const FPS = 30;
   const AUDIO_OFFSET_SEC = 0.5;
+
   const timedChunks = mapChunkTiming(
     chunks,
     fullNarration,
@@ -346,20 +647,43 @@ async function main() {
   const storyEndSec =
     timedChunks.length > 0
       ? timedChunks[timedChunks.length - 1].endSec
-      : tts.durationSec;
-  const verdictStartSec = storyEndSec + 0.5;
-  const verdictDurSec = 6;
-  const ctaStartSec = verdictStartSec + verdictDurSec;
-  const ctaDurSec = 2.5;
-  const totalSec = Math.max(55, ctaStartSec + ctaDurSec + 0.5);
+      : tts.durationSec * 0.6;
+
+  const debateStartSec =
+    findTextTimestamp(tts.alignment, fullNarration, debateNarration) ??
+    storyEndSec + 0.3;
+  const verdictStartSec =
+    findTextTimestamp(tts.alignment, fullNarration, "And the verdict is in") ??
+    debateStartSec + 14;
+  const ctaStartSec =
+    findTextTimestamp(tts.alignment, fullNarration, ctaLine) ??
+    verdictStartSec + 6;
+
+  const totalSec = Math.max(65, tts.durationSec + 2);
   const totalFrames = Math.ceil(totalSec * FPS);
 
-  console.log(`  Story   : 0 – ${storyEndSec.toFixed(1)}s`);
+  console.log(`  Story   : 0 \u2013 ${storyEndSec.toFixed(1)}s`);
+  console.log(`  Debate  : ${debateStartSec.toFixed(1)}s`);
   console.log(`  Verdict : ${verdictStartSec.toFixed(1)}s`);
   console.log(`  CTA     : ${ctaStartSec.toFixed(1)}s`);
   console.log(`  Total   : ${totalSec.toFixed(1)}s (${totalFrames} frames)`);
 
-  /* ── 6. Remotion props ── */
+  /* ── 9. Build debate visual messages ── */
+  const videoDebateMessages = buildVideoDebateMessages(
+    comments,
+    Math.round(debateStartSec * FPS),
+    FPS,
+  );
+  console.log(`  Debate msgs: ${videoDebateMessages.length}`);
+
+  /* ── 10. Check video background ── */
+  const hasVideo = fs.existsSync(
+    path.join(PUBLIC, "video", "parkour-bg.mp4"),
+  );
+  console.log(`  Video bg : ${hasVideo ? "YES" : "no (programmatic)"}`);
+
+  /* ── 11. Remotion props ── */
+  const debateEndFrame = Math.round(verdictStartSec * FPS) - 15;
   const inputProps = {
     subreddit: post.subreddit,
     author: post.author,
@@ -370,17 +694,22 @@ async function main() {
       startFrame: Math.round(c.startSec * FPS),
       endFrame: Math.round(c.endSec * FPS),
     })),
-    verdictLabel: "NTA",
+    debateMessages: videoDebateMessages,
+    debateStartFrame: Math.round(debateStartSec * FPS),
+    debateEndFrame,
+    verdictLabel,
     verdictOneLiner: oneLiner,
     verdictStartFrame: Math.round(verdictStartSec * FPS),
+    verdictColor,
     ctaText: ctaLine,
     ctaStartFrame: Math.round(ctaStartSec * FPS),
     narrationSrc: "generated/narration.mp3",
     audioOffsetFrames: Math.round(AUDIO_OFFSET_SEC * FPS),
+    hasVideoBackground: hasVideo,
   };
 
-  /* ── 7. Bundle ── */
-  console.log("\n📦 Step 5 — Bundling Remotion...");
+  /* ── 12. Bundle ── */
+  console.log("\n\u{1F4E6} Step 7 \u2014 Bundling Remotion...");
   const entryPoint = path.resolve(ROOT, "remotion", "index.ts");
   const bundled = await bundle({
     entryPoint,
@@ -391,9 +720,9 @@ async function main() {
   });
   console.log("  Bundle complete.\n");
 
-  /* ── 8. Render ── */
+  /* ── 13. Render ── */
   const compositionId = "RedditStoryReel60";
-  console.log(`🎬 Step 6 — Rendering "${compositionId}"...`);
+  console.log(`\u{1F3AC} Step 8 \u2014 Rendering "${compositionId}"...`);
   const composition = await selectComposition({
     serveUrl: bundled,
     id: compositionId,
@@ -401,7 +730,6 @@ async function main() {
   });
 
   const adjusted = { ...composition, durationInFrames: totalFrames };
-
   const outputPath = path.resolve(ROOT, "aitah-story-reel-60s.mp4");
   console.log(`  Output  : ${outputPath}`);
   console.log(
@@ -416,17 +744,21 @@ async function main() {
     outputLocation: outputPath,
     inputProps,
     onProgress: ({ progress }: { progress: number }) => {
-      process.stdout.write(`  Rendering: ${Math.round(progress * 100)}%\r`);
+      process.stdout.write(
+        `  Rendering: ${Math.round(progress * 100)}%\r`,
+      );
     },
   });
 
-  console.log(`\n\n✅ Story reel saved → ${outputPath}`);
+  console.log(`\n\n\u2705 Story reel saved \u2192 ${outputPath}`);
   console.log(`   Duration : ~${totalSec.toFixed(0)}s`);
-  console.log(`   Reddit   : ${redditUrl}`);
-  console.log(`   Verdict  : NTA\n`);
+  console.log(`   Verdict  : ${verdictLabel}`);
+  console.log(`   Gender   : ${gender} \u2192 voice ${voiceId}`);
+  console.log(`   Video bg : ${hasVideo}`);
+  console.log(`   Reddit   : ${redditUrl}\n`);
 }
 
 main().catch((err) => {
-  console.error("\n❌ Render failed:", err);
+  console.error("\n\u274C Render failed:", err);
   process.exit(1);
 });
