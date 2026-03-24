@@ -15,6 +15,29 @@ const SAMPLES = [
   },
 ];
 
+const REDDIT_URL_RE =
+  /^https?:\/\/(www\.)?reddit\.com\/r\/\w+\/comments\/\w+/i;
+
+function validateRedditUrl(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return "Please enter a URL.";
+  try {
+    const u = new URL(trimmed);
+    if (!["http:", "https:"].includes(u.protocol))
+      return "URL must start with https://";
+    if (
+      !u.hostname.endsWith("reddit.com") ||
+      (u.hostname !== "reddit.com" && u.hostname !== "www.reddit.com")
+    )
+      return "Only reddit.com links are accepted.";
+  } catch {
+    return "That doesn't look like a valid URL.";
+  }
+  if (!REDDIT_URL_RE.test(trimmed))
+    return "Please paste a Reddit post URL (e.g. reddit.com/r/…/comments/…)";
+  return null;
+}
+
 const Index = () => {
   const [view, setView] = useState<"input" | "loading" | "workspace">("input");
   const [bundle, setBundle] = useState<CaseBundle | null>(null);
@@ -22,6 +45,11 @@ const Index = () => {
   const [urlInput, setUrlInput] = useState("");
 
   const ingest = async (url: string) => {
+    const validationError = validateRedditUrl(url);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setView("loading");
     setError(null);
     try {

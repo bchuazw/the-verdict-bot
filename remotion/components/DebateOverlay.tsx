@@ -10,6 +10,7 @@ export interface VideoDebateMessage {
   text: string;
   color: string;
   startFrame: number;
+  endFrame: number;
 }
 
 interface Props {
@@ -18,9 +19,6 @@ interface Props {
   sectionEndFrame: number;
 }
 
-const MSG_HEIGHT = 140;
-const MAX_VISIBLE = 4;
-
 export const DebateOverlay: React.FC<Props> = ({
   messages,
   sectionStartFrame,
@@ -28,143 +26,165 @@ export const DebateOverlay: React.FC<Props> = ({
 }) => {
   const frame = useCurrentFrame();
 
-  if (frame < sectionStartFrame - 10 || frame > sectionEndFrame + 30)
+  if (frame < sectionStartFrame - 5 || frame > sectionEndFrame + 20)
     return null;
 
   const sectionEnter = interpolate(
     frame,
-    [sectionStartFrame, sectionStartFrame + 15],
+    [sectionStartFrame, sectionStartFrame + 12],
     [0, 1],
     { extrapolateRight: "clamp", extrapolateLeft: "clamp" },
   );
   const sectionExit =
     frame > sectionEndFrame
-      ? interpolate(frame, [sectionEndFrame, sectionEndFrame + 15], [1, 0], {
+      ? interpolate(frame, [sectionEndFrame, sectionEndFrame + 12], [1, 0], {
           extrapolateRight: "clamp",
         })
       : 1;
 
-  const opacity = sectionEnter * sectionExit;
   const visible = messages.filter((m) => frame >= m.startFrame);
-  const scrollOffset = Math.max(0, (visible.length - MAX_VISIBLE) * MSG_HEIGHT);
+  const F = "system-ui, sans-serif";
+
+  const isPros = (c: string) => c === "#ef4444";
+  const isDef = (c: string) => c === "#22c55e";
+  const icon = (c: string) =>
+    isPros(c) ? "\u2694\uFE0F" : isDef(c) ? "\uD83D\uDEE1\uFE0F" : "\uD83D\uDCAC";
 
   return (
-    <AbsoluteFill style={{ opacity }}>
+    <AbsoluteFill style={{ opacity: sectionEnter * sectionExit }}>
       {/* Header badge */}
       <div
         style={{
           position: "absolute",
-          top: 200,
+          top: 100,
           left: 0,
           right: 0,
           display: "flex",
           justifyContent: "center",
-          opacity: interpolate(
-            frame,
-            [sectionStartFrame, sectionStartFrame + 12],
-            [0, 1],
-            { extrapolateRight: "clamp", extrapolateLeft: "clamp" },
-          ),
         }}
       >
         <div
           style={{
-            background: "rgba(0,0,0,0.8)",
+            background: "rgba(0,0,0,0.85)",
             border: "1px solid rgba(255,69,0,0.5)",
-            borderRadius: 14,
-            padding: "12px 28px",
+            borderRadius: 12,
+            padding: "7px 20px",
             backdropFilter: "blur(12px)",
           }}
         >
           <span
             style={{
-              fontSize: 22,
+              fontSize: 16,
               fontWeight: 900,
               color: "#ff4500",
-              fontFamily: "system-ui, sans-serif",
-              letterSpacing: 3,
+              fontFamily: F,
+              letterSpacing: 4,
             }}
           >
             REDDIT TRIAL
           </span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: "#888",
+              fontFamily: F,
+              marginLeft: 8,
+            }}
+          >
+            powered by AI Agents
+          </span>
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Chat messages — tight, fill screen */}
       <div
         style={{
           position: "absolute",
-          top: 290,
-          left: 44,
-          right: 44,
-          bottom: 200,
-          overflow: "hidden",
+          top: 150,
+          left: 28,
+          right: 28,
+          bottom: 100,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            transform: `translateY(-${scrollOffset}px)`,
-          }}
-        >
-          {visible.map((msg, i) => {
-            const enter = interpolate(
-              frame,
-              [msg.startFrame, msg.startFrame + 10],
-              [0, 1],
-              {
-                extrapolateRight: "clamp",
-                easing: Easing.out(Easing.back(1.05)),
-              },
-            );
+        {visible.map((msg, i) => {
+          const enter = interpolate(
+            frame,
+            [msg.startFrame, msg.startFrame + 10],
+            [0, 1],
+            {
+              extrapolateRight: "clamp",
+              easing: Easing.out(Easing.cubic),
+            },
+          );
 
-            const isProsecutor = msg.color === "#ef4444";
-            const isDefense = msg.color === "#22c55e";
-            const emoji = isProsecutor ? "\u2694\uFE0F" : isDefense ? "\uD83D\uDEE1\uFE0F" : "\uD83C\uDF10";
-
-            return (
+          return (
+            <div
+              key={i}
+              style={{
+                opacity: enter,
+                transform: `translateY(${interpolate(enter, [0, 1], [14, 0])}px)`,
+                background: "rgba(0,0,0,0.82)",
+                borderLeft: `4px solid ${msg.color}`,
+                borderRadius: 12,
+                padding: "12px 16px",
+                backdropFilter: "blur(12px)",
+                boxShadow: `0 4px 20px ${msg.color}22`,
+              }}
+            >
               <div
-                key={i}
                 style={{
-                  opacity: enter,
-                  transform: `translateX(${interpolate(enter, [0, 1], [isProsecutor ? -40 : 40, 0])}px)`,
-                  background: "rgba(0,0,0,0.72)",
-                  borderLeft: `4px solid ${msg.color}`,
-                  borderRadius: 14,
-                  padding: "14px 18px",
-                  backdropFilter: "blur(10px)",
-                  boxShadow: `0 4px 20px ${msg.color}22`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 6,
                 }}
               >
-                <div
+                <span style={{ fontSize: 13 }}>{icon(msg.color)}</span>
+                <span
                   style={{
-                    fontSize: 16,
+                    fontSize: 13,
                     fontWeight: 800,
                     color: msg.color,
-                    fontFamily: "system-ui, sans-serif",
-                    marginBottom: 6,
-                    letterSpacing: 0.5,
+                    fontFamily: F,
+                    letterSpacing: 1,
                   }}
                 >
-                  {emoji} {msg.displayName}
-                </div>
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 500,
-                    color: "#fff",
-                    lineHeight: 1.35,
-                    fontFamily: "system-ui, sans-serif",
-                  }}
-                >
-                  {msg.text}
-                </div>
+                  {msg.displayName.toUpperCase()}
+                </span>
+                {(isPros(msg.color) || isDef(msg.color)) && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: "#555",
+                      background: "rgba(255,255,255,0.08)",
+                      borderRadius: 5,
+                      padding: "1px 6px",
+                      fontFamily: F,
+                    }}
+                  >
+                    AI AGENT
+                  </span>
+                )}
               </div>
-            );
-          })}
-        </div>
+              <div
+                style={{
+                  fontSize: 20,
+                  fontWeight: 500,
+                  color: "#fff",
+                  lineHeight: 1.35,
+                  fontFamily: F,
+                }}
+              >
+                {msg.text}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </AbsoluteFill>
   );

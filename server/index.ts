@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { execSync, spawn } from "child_process";
 import path from "path";
@@ -14,7 +15,40 @@ const ROOT = path.resolve(__dirname, "..");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
+
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests — please wait a minute." },
+});
+app.use("/api/", apiLimiter);
+
+const REDDIT_URL_RE =
+  /^https?:\/\/(www\.)?reddit\.com\/r\/\w+\/comments\/\w+/i;
+
+function sanitizeRedditUrl(raw: unknown): string {
+  if (typeof raw !== "string" || !raw.trim()) throw new Error("url is required");
+  const trimmed = raw.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("Invalid URL format");
+  }
+  if (!["http:", "https:"].includes(parsed.protocol))
+    throw new Error("URL must use https");
+  if (
+    parsed.hostname !== "reddit.com" &&
+    parsed.hostname !== "www.reddit.com"
+  )
+    throw new Error("Only reddit.com links are accepted");
+  if (!REDDIT_URL_RE.test(trimmed))
+    throw new Error("URL must be a Reddit post (reddit.com/r/…/comments/…)");
+  return `https://www.reddit.com${parsed.pathname}`;
+}
 
 /* ═══════════════════════════════════════════════════
    Types
@@ -350,8 +384,14 @@ async function searchFirecrawlReceipts(query: string): Promise<Receipt[]> {
 
 app.post("/api/reddit/ingest", async (req, res) => {
   try {
-    const { url } = req.body as { url: string };
-    if (!url) return res.status(400).json({ error: "url is required" });
+    let url: string;
+    try {
+      url = sanitizeRedditUrl(req.body?.url);
+    } catch (e: unknown) {
+      return res
+        .status(400)
+        .json({ error: e instanceof Error ? e.message : "Invalid URL" });
+    }
 
     console.log(`\n📥 Ingesting: ${url}`);
 

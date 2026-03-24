@@ -57,6 +57,7 @@ interface VideoDebateMessage {
   text: string;
   color: string;
   startFrame: number;
+  endFrame: number;
 }
 
 /* ════════════════════════════════════════════════════
@@ -311,13 +312,15 @@ function buildDebateNarration(comments: ParsedComment[]): string {
     .filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH")
     .sort((a, b) => b.score - a.score);
 
-  if (yta.length > 0 && nta.length > 0) {
-    return `Reddit went in on this one. One side says: ${firstSentence(yta[0].body)}. But the defense fires back: ${firstSentence(nta[0].body)}.`;
-  }
-  if (nta.length > 0) {
-    return "Reddit overwhelmingly sided with OP. Almost nobody was calling them out.";
-  }
-  return "Reddit was divided on this one. The comments were a battleground.";
+  const parts: string[] = [];
+  parts.push("Two AI agents debated this case.");
+
+  if (yta.length > 0)
+    parts.push(`The prosecution argues: ${firstSentence(yta[0].body, 70)}.`);
+  if (nta.length > 0)
+    parts.push(`The defense fires back: ${firstSentence(nta[0].body, 70)}.`);
+
+  return parts.join(" ");
 }
 
 function generateOneLiner(label: string): string {
@@ -343,9 +346,34 @@ function generateOneLiner(label: string): string {
    Build video debate messages (visual chat bubbles)
    ════════════════════════════════════════════════════ */
 
+function summarizeSide(comments: ParsedComment[], max = 3): string {
+  const summaries = comments.slice(0, max).map((c) => firstSentence(c.body, 80));
+  return summaries.join(". ") + ".";
+}
+
+function buildGeneralSummary(comments: ParsedComment[], jury: JurySummary): string {
+  const total = Object.values(jury.verdictCounts).reduce((a, b) => a + b, 0);
+  const parts: string[] = [];
+  if (jury.majorityVerdict) {
+    const pct = total > 0 ? Math.round(((jury.verdictCounts[jury.majorityVerdict] ?? 0) / total) * 100) : 0;
+    parts.push(`${pct}% voted ${jury.majorityVerdict}`);
+  }
+  const topGeneral = comments.find(
+    (c) => !c.verdictTag && c.body.length > 20 && c.score > 3,
+  );
+  if (topGeneral) {
+    parts.push(firstSentence(topGeneral.body, 80));
+  } else {
+    parts.push(`${total} comments analyzed`);
+  }
+  return parts.join(". ") + ".";
+}
+
 function buildVideoDebateMessages(
   comments: ParsedComment[],
+  jury: JurySummary,
   debateStartFrame: number,
+  debateEndFrame: number,
   fps: number,
 ): VideoDebateMessage[] {
   const nta = comments
@@ -354,76 +382,45 @@ function buildVideoDebateMessages(
   const yta = comments
     .filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH")
     .sort((a, b) => b.score - a.score);
-  const top = [...comments].sort((a, b) => b.score - a.score);
 
   const msgs: VideoDebateMessage[] = [];
-  let f = debateStartFrame + Math.round(1 * fps);
-  const GAP = Math.round(2.8 * fps);
+  let f = debateStartFrame + Math.round(0.6 * fps);
+  const GAP = Math.round(3.5 * fps);
 
-  if (yta.length > 0) {
-    msgs.push({
-      displayName: "The Prosecutor",
-      text: trunc(yta[0].body),
-      color: "#ef4444",
-      startFrame: f,
-    });
-  } else {
-    msgs.push({
-      displayName: "The Prosecutor",
-      text: "OP went nuclear. There were better ways to handle this.",
-      color: "#ef4444",
-      startFrame: f,
-    });
-  }
+  const prosText =
+    yta.length > 0
+      ? summarizeSide(yta)
+      : "OP went nuclear. There were better ways to handle this.";
+  msgs.push({
+    displayName: "AI Agent: Prosecution",
+    text: trunc(prosText, 200),
+    color: "#ef4444",
+    startFrame: f,
+    endFrame: debateEndFrame,
+  });
   f += GAP;
 
-  if (nta.length > 0) {
-    msgs.push({
-      displayName: "The Defense",
-      text: trunc(nta[0].body),
-      color: "#22c55e",
-      startFrame: f,
-    });
-  } else {
-    msgs.push({
-      displayName: "The Defense",
-      text: "OP set a boundary. That's healthy, not dramatic.",
-      color: "#22c55e",
-      startFrame: f,
-    });
-  }
+  const defText =
+    nta.length > 0
+      ? summarizeSide(nta)
+      : "OP set a boundary. That's healthy, not dramatic.";
+  msgs.push({
+    displayName: "AI Agent: Defense",
+    text: trunc(defText, 200),
+    color: "#22c55e",
+    startFrame: f,
+    endFrame: debateEndFrame,
+  });
   f += GAP;
 
-  const funny =
-    top.find((c) => c.body.length < 200 && c.score > 10) ?? top[0];
-  if (funny) {
-    msgs.push({
-      displayName: "The Internet",
-      text: trunc(funny.body),
-      color: "#8b5cf6",
-      startFrame: f,
-    });
-    f += GAP;
-  }
-
-  if (yta.length > 1) {
-    msgs.push({
-      displayName: "The Prosecutor",
-      text: trunc(yta[1].body),
-      color: "#ef4444",
-      startFrame: f,
-    });
-    f += GAP;
-  }
-
-  if (nta.length > 1) {
-    msgs.push({
-      displayName: "The Defense",
-      text: trunc(nta[1].body),
-      color: "#22c55e",
-      startFrame: f,
-    });
-  }
+  const generalText = buildGeneralSummary(comments, jury);
+  msgs.push({
+    displayName: "Reddit Comments",
+    text: trunc(generalText, 180),
+    color: "#8b5cf6",
+    startFrame: f,
+    endFrame: debateEndFrame,
+  });
 
   return msgs;
 }
@@ -444,6 +441,7 @@ async function generateTTS(text: string, voiceId: string): Promise<TTSResult> {
       similarity_boost: 0.78,
       style: 0.12,
       use_speaker_boost: true,
+      speed: 1.2,
     },
   };
 
@@ -600,7 +598,7 @@ async function main() {
 
   /* ── 5. Text processing ── */
   console.log("\n\u2702\uFE0F  Step 4 \u2014 Processing text...");
-  const condensed = condense(post.body, 140);
+  const condensed = condense(post.body, 180);
   const chunks = chunkStory(condensed);
   console.log(`  Chunks  : ${chunks.length}`);
   chunks.forEach((c, i) => console.log(`    [${i}] ${c.slice(0, 70)}`));
@@ -612,7 +610,7 @@ async function main() {
   const storyText = chunks.join(" ");
   const debateNarration = buildDebateNarration(comments);
   const oneLiner = generateOneLiner(verdictLabel);
-  const verdictNarration = `And the verdict is in. ${verdictLabel}. ${oneLiner}`;
+  const verdictNarration = `After hearing both AI agents argue their case, the verdict is in. ${verdictLabel}. ${oneLiner}`;
   const ctaLine = "Do you agree? Drop your verdict in the comments.";
 
   const fullNarration = [
@@ -653,13 +651,13 @@ async function main() {
     findTextTimestamp(tts.alignment, fullNarration, debateNarration) ??
     storyEndSec + 0.3;
   const verdictStartSec =
-    findTextTimestamp(tts.alignment, fullNarration, "And the verdict is in") ??
+    findTextTimestamp(tts.alignment, fullNarration, "the verdict is in") ??
     debateStartSec + 14;
   const ctaStartSec =
     findTextTimestamp(tts.alignment, fullNarration, ctaLine) ??
-    verdictStartSec + 6;
+    verdictStartSec + 8;
 
-  const totalSec = Math.max(65, tts.durationSec + 2);
+  const totalSec = Math.min(90, Math.max(60, tts.durationSec + 2));
   const totalFrames = Math.ceil(totalSec * FPS);
 
   console.log(`  Story   : 0 \u2013 ${storyEndSec.toFixed(1)}s`);
@@ -669,9 +667,12 @@ async function main() {
   console.log(`  Total   : ${totalSec.toFixed(1)}s (${totalFrames} frames)`);
 
   /* ── 9. Build debate visual messages ── */
+  const debateEndFrame = Math.round(verdictStartSec * FPS) - 10;
   const videoDebateMessages = buildVideoDebateMessages(
     comments,
+    jury,
     Math.round(debateStartSec * FPS),
+    debateEndFrame,
     FPS,
   );
   console.log(`  Debate msgs: ${videoDebateMessages.length}`);
@@ -682,8 +683,27 @@ async function main() {
   );
   console.log(`  Video bg : ${hasVideo ? "YES" : "no (programmatic)"}`);
 
-  /* ── 11. Remotion props ── */
-  const debateEndFrame = Math.round(verdictStartSec * FPS) - 15;
+  /* ── 11. Remotion props — verdict from AI agents debate ── */
+  const prosComments = comments.filter(
+    (c) => c.verdictTag === "YTA" || c.verdictTag === "ESH",
+  );
+  const defComments = comments.filter((c) => c.verdictTag === "NTA");
+  const prosScore = prosComments.reduce((s, c) => s + c.score, 0);
+  const defScore = defComments.reduce((s, c) => s + c.score, 0);
+  const totalScore = prosScore + defScore || 1;
+  const prosStrength = Math.round((prosScore / totalScore) * 100);
+  const defStrength = 100 - prosStrength;
+  const agentWinner = prosStrength >= defStrength ? "prosecution" : "defense";
+  const confidence =
+    agentWinner === "prosecution" ? prosStrength : defStrength;
+  const voteSummary = `Prosecution ${prosStrength}% vs Defense ${defStrength}%`;
+
+  console.log(
+    `  AI Debate: Prosecution ${prosStrength}% | Defense ${defStrength}% → ${agentWinner} wins`,
+  );
+
+  console.log(`  Confidence: ${confidence}% | Votes: ${voteSummary}`);
+
   const inputProps = {
     subreddit: post.subreddit,
     author: post.author,
@@ -701,6 +721,8 @@ async function main() {
     verdictOneLiner: oneLiner,
     verdictStartFrame: Math.round(verdictStartSec * FPS),
     verdictColor,
+    verdictConfidence: confidence,
+    verdictVoteSummary: voteSummary,
     ctaText: ctaLine,
     ctaStartFrame: Math.round(ctaStartSec * FPS),
     narrationSrc: "generated/narration.mp3",

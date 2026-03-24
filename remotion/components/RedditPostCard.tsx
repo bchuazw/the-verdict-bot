@@ -1,4 +1,4 @@
-import { useCurrentFrame, interpolate, Easing } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 
 export interface StoryChunk {
   text: string;
@@ -12,10 +12,6 @@ interface Props {
   title: string;
   chunks: StoryChunk[];
 }
-
-const CHUNK_HEIGHT = 80;
-const VIEWPORT_CHUNKS = 7;
-const SCROLL_LEAD = 2;
 
 export const RedditPostCard: React.FC<Props> = ({
   subreddit,
@@ -34,171 +30,159 @@ export const RedditPostCard: React.FC<Props> = ({
   );
   const safeIdx = activeIdx >= 0 ? activeIdx : lastRevealed;
 
-  const maxScroll = Math.max(
-    0,
-    (chunks.length - VIEWPORT_CHUNKS) * CHUNK_HEIGHT,
-  );
-
-  const scrollTargets = chunks.map((_, i) =>
-    Math.min(Math.max(0, (i - SCROLL_LEAD) * CHUNK_HEIGHT), maxScroll),
-  );
-  const kfFrames: number[] = [0];
-  const kfValues: number[] = [0];
-
-  for (let i = 0; i < chunks.length; i++) {
-    const target = scrollTargets[i];
-    const prev = kfValues[kfValues.length - 1];
-    if (target !== prev) {
-      kfFrames.push(
-        Math.max(
-          chunks[i].startFrame - 1,
-          kfFrames[kfFrames.length - 1] + 1,
-        ),
-      );
-      kfValues.push(prev);
-      kfFrames.push(chunks[i].startFrame + 12);
-      kfValues.push(target);
-    }
-  }
-  const lastEnd = chunks[chunks.length - 1]?.endFrame ?? 1;
-  kfFrames.push(lastEnd);
-  kfValues.push(kfValues[kfValues.length - 1]);
-
-  const scrollY = interpolate(frame, kfFrames, kfValues, {
-    extrapolateRight: "clamp",
-    extrapolateLeft: "clamp",
-  });
+  const F = "system-ui, sans-serif";
 
   return (
     <div
       style={{
         position: "absolute",
-        top: 160,
-        left: 48,
-        right: 48,
-        bottom: 220,
-        background: "rgba(255, 255, 255, 0.97)",
-        borderRadius: 18,
-        overflow: "hidden",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 8px 50px rgba(0,0,0,0.55)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "100px 36px 180px",
       }}
     >
-      {/* Header */}
       <div
         style={{
-          padding: "16px 20px",
-          borderBottom: "1px solid #e5e7eb",
+          width: "100%",
+          background: "rgba(255, 255, 255, 0.97)",
+          borderRadius: 18,
+          overflow: "hidden",
           display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexShrink: 0,
+          flexDirection: "column",
+          boxShadow: "0 8px 50px rgba(0,0,0,0.55)",
         }}
       >
+        {/* Header */}
         <div
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            background: "#ff4500",
+            padding: "14px 18px",
+            borderBottom: "1px solid #e5e7eb",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: 14,
-            fontFamily: "system-ui, sans-serif",
+            gap: 10,
+            flexShrink: 0,
           }}
         >
-          r/
-        </div>
-        <div>
           <div
             style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: "#1a1a1b",
-              fontFamily: "system-ui, sans-serif",
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              background: "#ff4500",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 13,
+              fontFamily: F,
             }}
           >
-            r/{subreddit}
+            r/
           </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: "#7c7c7c",
-              fontFamily: "system-ui, sans-serif",
-            }}
-          >
-            u/{author}
+          <div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "#1a1a1b",
+                fontFamily: F,
+              }}
+            >
+              r/{subreddit}
+            </div>
+            <div style={{ fontSize: 11, color: "#7c7c7c", fontFamily: F }}>
+              u/{author}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Title */}
-      <div
-        style={{
-          padding: "12px 20px 6px",
-          fontSize: 24,
-          fontWeight: 700,
-          color: "#1a1a1b",
-          lineHeight: 1.22,
-          fontFamily: "system-ui, sans-serif",
-          flexShrink: 0,
-        }}
-      >
-        {title}
-      </div>
+        {/* Title */}
+        <div
+          style={{
+            padding: "10px 18px 6px",
+            fontSize: 22,
+            fontWeight: 700,
+            color: "#1a1a1b",
+            lineHeight: 1.25,
+            fontFamily: F,
+          }}
+        >
+          {title}
+        </div>
 
-      {/* Body — line-by-line reveal */}
-      <div
-        style={{
-          flex: 1,
-          padding: "6px 20px 18px",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
-        <div style={{ transform: `translateY(-${scrollY}px)` }}>
+        {/* Engagement bar */}
+        <div
+          style={{
+            padding: "6px 18px 8px",
+            display: "flex",
+            gap: 14,
+            flexShrink: 0,
+            borderBottom: "1px solid #e5e7eb",
+          }}
+        >
+          {[
+            { icon: "\u2B06", label: "95K" },
+            { icon: "\uD83D\uDCAC", label: "22K" },
+            { icon: "\uD83D\uDD17", label: "Share" },
+          ].map((b, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: 12,
+                color: "#7c7c7c",
+                fontFamily: F,
+                fontWeight: 600,
+              }}
+            >
+              {b.icon} {b.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Body — line-by-line reveal, no scrolling */}
+        <div style={{ padding: "8px 18px 16px" }}>
           {chunks.map((chunk, i) => {
-            const isRevealed = frame >= chunk.startFrame;
+            const revealed = frame >= chunk.startFrame;
             const isActive = i === safeIdx;
             const isPast = safeIdx >= 0 && i < safeIdx;
 
-            const revealProgress = isRevealed
+            const reveal = revealed
               ? interpolate(
                   frame,
-                  [chunk.startFrame, chunk.startFrame + 10],
+                  [chunk.startFrame, chunk.startFrame + 8],
                   [0, 1],
                   { extrapolateRight: "clamp" },
                 )
               : 0;
 
+            if (!revealed) return null;
+
             return (
               <div
                 key={i}
                 style={{
-                  fontSize: 22,
-                  lineHeight: 1.42,
-                  color: isActive
-                    ? "#1a1a1b"
-                    : isPast
-                      ? "#4a4a4b"
-                      : "#9a9a9b",
+                  fontSize: 20,
+                  lineHeight: 1.5,
+                  color: isActive ? "#1a1a1b" : isPast ? "#4a4a4b" : "#9a9a9b",
                   fontWeight: isActive ? 600 : 400,
-                  padding: "6px 10px",
-                  marginBottom: 4,
-                  borderRadius: 6,
+                  padding: "4px 8px",
+                  marginBottom: 2,
+                  borderRadius: 5,
                   background: isActive
                     ? "rgba(255, 69, 0, 0.08)"
                     : "transparent",
                   borderLeft: isActive
                     ? "3px solid #ff4500"
                     : "3px solid transparent",
-                  fontFamily: "system-ui, sans-serif",
-                  opacity: revealProgress,
-                  transform: `translateY(${interpolate(revealProgress, [0, 1], [10, 0])}px)`,
+                  fontFamily: F,
+                  opacity: reveal,
+                  transform: `translateY(${interpolate(reveal, [0, 1], [6, 0])}px)`,
                 }}
               >
                 {chunk.text}
@@ -206,24 +190,6 @@ export const RedditPostCard: React.FC<Props> = ({
             );
           })}
         </div>
-      </div>
-
-      {/* Bottom metadata */}
-      <div
-        style={{
-          padding: "10px 20px",
-          borderTop: "1px solid #e5e7eb",
-          display: "flex",
-          gap: 18,
-          fontSize: 13,
-          color: "#7c7c7c",
-          fontFamily: "system-ui, sans-serif",
-          flexShrink: 0,
-        }}
-      >
-        <span>{"\u2B06"} 2.4k</span>
-        <span>{"\uD83D\uDCAC"} 847</span>
-        <span>{"\uD83D\uDD17"} Share</span>
       </div>
     </div>
   );
