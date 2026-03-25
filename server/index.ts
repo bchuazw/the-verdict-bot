@@ -390,28 +390,40 @@ app.post("/api/agent/start-session", async (req, res) => {
   }
 
   try {
-    let url: string;
-    try {
-      url = sanitizeRedditUrl(req.body?.url);
-    } catch (e: unknown) {
-      return res.status(400).json({ error: e instanceof Error ? e.message : "Invalid URL" });
+    let post: { title: string; body: string; subreddit: string; author: string };
+    let comments: RedditComment[];
+    let jury: JurySummary;
+
+    if (req.body?.caseBundle) {
+      const bundle = req.body.caseBundle;
+      post = bundle.post;
+      comments = bundle.comments ?? [];
+      jury = bundle.jury;
+      console.log(`\n🎙️ Starting voice trial (pre-computed): ${post.title}`);
+    } else {
+      let url: string;
+      try {
+        url = sanitizeRedditUrl(req.body?.url);
+      } catch (e: unknown) {
+        return res.status(400).json({ error: e instanceof Error ? e.message : "Invalid URL" });
+      }
+
+      console.log(`\n🎙️ Starting voice trial for: ${url}`);
+
+      const raw = await fetchRedditThread(url);
+      const postData = (raw as any)[0]?.data?.children?.[0]?.data;
+      if (!postData) throw new Error("Could not parse Reddit post");
+
+      post = {
+        title: postData.title as string,
+        body: ((postData.selftext as string) ?? "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+        subreddit: postData.subreddit as string,
+        author: postData.author as string,
+      };
+
+      comments = parseComments(raw as unknown[]);
+      jury = computeJury(comments);
     }
-
-    console.log(`\n🎙️ Starting voice trial for: ${url}`);
-
-    const raw = await fetchRedditThread(url);
-    const postData = (raw as any)[0]?.data?.children?.[0]?.data;
-    if (!postData) throw new Error("Could not parse Reddit post");
-
-    const post = {
-      title: postData.title as string,
-      body: ((postData.selftext as string) ?? "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
-      subreddit: postData.subreddit as string,
-      author: postData.author as string,
-    };
-
-    const comments = parseComments(raw as unknown[]);
-    const jury = computeJury(comments);
 
     const yta = comments.filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH").sort((a, b) => b.score - a.score);
     const nta = comments.filter((c) => c.verdictTag === "NTA").sort((a, b) => b.score - a.score);

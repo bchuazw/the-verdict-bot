@@ -6,10 +6,13 @@ import {
   buildCaseContext,
 } from "../_lib/reddit.js";
 
-const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
-const API_KEY = process.env.ELEVENLABS_API_KEY;
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
+  const API_KEY = process.env.ELEVENLABS_API_KEY;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   if (!AGENT_ID || !API_KEY) {
@@ -17,10 +20,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const url = sanitizeRedditUrl(req.body?.url);
-    const raw = await fetchRedditThread(url);
-    const bundle = buildCaseBundle(raw, url);
-    const caseContext = buildCaseContext(bundle);
+    let caseContext: string;
+    let caseTitle: string;
+    let caseSub: string;
+    let juryCount: number;
+
+    if (req.body?.caseBundle) {
+      const bundle = req.body.caseBundle;
+      caseContext = buildCaseContext({
+        post: bundle.post,
+        jury: bundle.jury,
+        comments: bundle.comments ?? [],
+      });
+      caseTitle = bundle.post?.title ?? "Unknown case";
+      caseSub = bundle.post?.subreddit ?? "AmItheAsshole";
+      juryCount = bundle.jury?.analyzedCount ?? 0;
+    } else {
+      const url = sanitizeRedditUrl(req.body?.url);
+      const raw = await fetchRedditThread(url);
+      const bundle = buildCaseBundle(raw, url);
+      caseContext = buildCaseContext(bundle);
+      caseTitle = bundle.post.title;
+      caseSub = bundle.post.subreddit;
+      juryCount = bundle.jury.analyzedCount;
+    }
 
     const patchRes = await fetch(
       `https://api.elevenlabs.io/v1/convai/agents/${AGENT_ID}`,
@@ -36,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               prompt: {
                 prompt: buildSystemPrompt(caseContext),
               },
-              first_message: `Order in the court! I'm Judge Verdict, and I've just reviewed the case: "${bundle.post.title}" from r/${bundle.post.subreddit}. ${bundle.jury.analyzedCount} Reddit jurors have already weighed in, and let me tell you... this one is SPICY. Say "begin the trial" and I'll present both sides, or ask me anything about the case.`,
+              first_message: `Order in the court! I'm Judge Verdict, and I've just reviewed the case: "${caseTitle}" from r/${caseSub}. ${juryCount} Reddit jurors have already weighed in, and let me tell you... this one is SPICY. Say "begin the trial" and I'll present both sides, or ask me anything about the case.`,
             },
           },
         }),
@@ -64,8 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.json({
       signedUrl: signed_url,
-      caseTitle: bundle.post.title,
-      verdict: bundle.verdict,
+      caseTitle,
     });
   } catch (err: unknown) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });

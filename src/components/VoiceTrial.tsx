@@ -11,10 +11,11 @@ interface TranscriptEntry {
 interface Props {
   postUrl: string;
   postTitle: string;
+  caseBundle?: any;
   onClose: () => void;
 }
 
-export default function VoiceTrial({ postUrl, postTitle, onClose }: Props) {
+export default function VoiceTrial({ postUrl, postTitle, caseBundle, onClose }: Props) {
   const [status, setStatus] = useState<
     "idle" | "connecting" | "connected" | "error"
   >("idle");
@@ -72,7 +73,7 @@ export default function VoiceTrial({ postUrl, postTitle, onClose }: Props) {
       const res = await fetch("/api/agent/start-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: postUrl }),
+        body: JSON.stringify(caseBundle ? { caseBundle } : { url: postUrl }),
       });
 
       if (!res.ok) {

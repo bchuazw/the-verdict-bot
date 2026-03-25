@@ -173,6 +173,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
             <VoiceTrial
               postUrl={post.url}
               postTitle={post.title}
+              caseBundle={{ post, jury, comments }}
               onClose={() => setTab("discussion")}
             />
           )}
