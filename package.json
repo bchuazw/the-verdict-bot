@@ -19,6 +19,7 @@
     "render:story": "npx tsx scripts/render-story-reel.ts"
   },
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.40.0",
     "@elevenlabs/react": "^0.14.3",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -59,6 +60,7 @@
     "cors": "^2.8.6",
     "date-fns": "^3.6.0",
     "dotenv": "^17.3.1",
+    "elevenlabs": "^1.59.0",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.1",
@@ -79,6 +81,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
+    "ws": "^8.20.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -91,6 +94,7 @@
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@types/ws": "^8.18.1",
     "@vercel/node": "^5.6.20",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",

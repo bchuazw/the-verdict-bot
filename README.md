@@ -1,14 +1,56 @@
 # AITAH?! — The Verdict Bot
 
-Turn a Reddit **Am I the Asshole?** post into a **web trial** (text + voice), optional **Firecrawl “receipts”**, and a **short vertical video** (~60–90s) built with **Remotion** and **ElevenLabs** narration.
+Turn a Reddit **Am I the Asshole?** post into a full **AI courtroom trial** with live ElevenLabs agent debates, voice conversations, and auto-generated social media reels.
 
 ---
 
 ## What it does
 
-1. **Web app** — Paste a valid Reddit post URL. The backend loads the thread via Reddit’s public `.json` API, analyzes top comments (NTA/YTA/ESH, etc.), generates a scripted **debate**, fetches **search snippets** via Firecrawl, and shows a **verdict** card.
-2. **Voice trial** — An **ElevenLabs Conversational AI** agent (“Judge Verdict”) gets **case context** patched per session. It can call a **server tool** that runs **Firecrawl search** and returns evidence text.
-3. **Video export** — A local script fetches the same data, generates **TTS with timestamps**, and **Remotion** renders a reel (gameplay-style background, line-by-line post, Reddit Trial overlays, verdict). Intended to stay **under ~90s** for hackathon-style submissions.
+1. **Web app** — Paste a Reddit AITA post URL. The backend loads the thread, analyzes top comments (NTA/YTA/ESH), and presents a case workspace.
+2. **AI Trial (Agent vs Agent)** — Two **ElevenLabs Conversational AI agents** (Prosecutor and Defense Attorney) debate the case live in text mode. Each agent is dynamically patched with case context and can use **Firecrawl** to search the web for evidence.
+3. **Voice Trial (Human vs Agent)** — Talk to "Judge Verdict", an **ElevenLabs Conversational AI agent** that knows the case details, can search for evidence via Firecrawl, and delivers a verdict.
+4. **Video export** — A local script runs the ElevenLabs agents server-side via the `simulateConversation` API, captures their debate transcript, generates TTS narration, and renders a **60–90 second vertical reel** with Remotion.
+
+---
+
+## How ElevenLabs agents are used
+
+This project uses **three ElevenLabs Conversational AI agents** as the core of the experience:
+
+### 1. Prosecutor Agent
+- **Role:** Argues the OP IS the asshole (YTA)
+- **How it works:** Before each session, the agent's prompt is dynamically PATCHed with the Reddit post, comments, and jury data. It has a `search_evidence` webhook tool that calls Firecrawl to find external evidence supporting its argument.
+- **Used in:** Frontend AI Trial tab (live text-only WebSocket via `@elevenlabs/react`) + Video pipeline (server-side `simulateConversation` REST API via `@elevenlabs/elevenlabs-js`)
+
+### 2. Defense Agent
+- **Role:** Argues the OP is NOT the asshole (NTA)
+- **How it works:** Same dynamic patching and Firecrawl tool access as the Prosecutor, but argues the opposite side.
+- **Used in:** Frontend AI Trial tab + Video pipeline
+
+### 3. Judge Agent
+- **Role:** Neutral judge who can discuss the case with the user via voice
+- **How it works:** PATCHed with case context per session. Users speak to it via microphone. It can also call `search_evidence` for Firecrawl-powered web lookups.
+- **Used in:** Frontend Voice Trial tab (live WebSocket audio via `@elevenlabs/react`)
+
+### Integration points
+
+| Feature | ElevenLabs API | Method |
+|---------|---------------|--------|
+| Frontend AI Trial | ConvAI WebSocket (text-only mode) | `@elevenlabs/react` `useConversation` with `textOnly: true` |
+| Frontend Voice Trial | ConvAI WebSocket (audio mode) | `@elevenlabs/react` `useConversation` with microphone |
+| Video debate | ConvAI `simulateConversation` REST API | `@elevenlabs/elevenlabs-js` SDK (server-side) |
+| Video narration | TTS `with-timestamps` endpoint | Direct REST API call |
+| Agent tools | Webhook → Firecrawl Search API | Vercel serverless function |
+
+---
+
+## How Firecrawl is used
+
+Firecrawl serves as the "evidence search engine" throughout the project:
+
+1. **Agent webhook tool** — All three ElevenLabs agents have a `search_evidence` tool configured. When an agent decides it needs external evidence, ElevenLabs calls our webhook at `/api/agent/tools/search-evidence`, which queries Firecrawl's Search API and returns relevant snippets.
+2. **Ingest receipts** — When a Reddit post is loaded, the backend searches Firecrawl for related articles/discussions to display as "receipts" in the UI.
+3. **Video pipeline** — The render script also searches Firecrawl for background context.
 
 ---
 
@@ -16,13 +58,14 @@ Turn a Reddit **Am I the Asshole?** post into a **web trial** (text + voice), op
 
 | Area | Stack |
 |------|--------|
-| UI | Vite, React, TypeScript, Tailwind, Framer Motion, shadcn-style components |
-| Local API | Express — `server/index.ts` (default port **3001**) |
-| Hosted API + static site | Vercel — `api/*` serverless functions + Vite build (`vercel.json`) |
-| Voice agent | ElevenLabs ConvAI + `@elevenlabs/react` |
-| TTS (video pipeline) | ElevenLabs API (see `scripts/render-story-reel.ts`) |
-| Search | Firecrawl Search API |
-| Video | Remotion (`remotion/`) |
+| UI | Vite, React, TypeScript, Tailwind, Framer Motion |
+| Local API | Express — `server/index.ts` (port **3001**) |
+| Hosted API | Vercel serverless functions (`api/*`) |
+| AI agents (frontend) | ElevenLabs ConvAI + `@elevenlabs/react` |
+| AI agents (video) | ElevenLabs `simulateConversation` + `@elevenlabs/elevenlabs-js` |
+| TTS (video) | ElevenLabs `with-timestamps` API |
+| Evidence search | Firecrawl Search API |
+| Video rendering | Remotion |
 
 ---
 
@@ -30,185 +73,152 @@ Turn a Reddit **Am I the Asshole?** post into a **web trial** (text + voice), op
 
 | Path | Role |
 |------|------|
-| `src/pages/Index.tsx` | Landing: URL validation, samples, triggers ingest |
-| `src/components/CaseWorkspace.tsx` | Tabs: Voice Trial, text trial, post, comments, receipts, verdict |
-| `src/components/VoiceTrial.tsx` | Live conversation UI; calls `POST /api/agent/start-session` |
-| `src/components/DiscussionChat.tsx` | Animated text “trial” from generated debate messages |
-| `server/index.ts` | Ingest, debate, verdict, reel render spawn, agent + Firecrawl webhook routes |
-| `api/_lib/reddit.ts` | Shared Reddit parse / jury / debate helpers for Vercel |
-| `api/reddit/ingest.ts` | Vercel: same ingest as Express (Reddit may **403** from datacenter IPs) |
-| `api/agent/start-session.ts` | Vercel: patch agent + signed URL; prefers **`caseBundle`** body |
-| `api/agent/tools/search-evidence.ts` | Vercel: ElevenLabs tool webhook → Firecrawl |
-| `remotion/` | Compositions (`RedditStoryReel.tsx`), overlays, `Root.tsx` defaults |
-| `scripts/render-story-reel.ts` | End-to-end story reel: fetch → TTS → Remotion → MP4 |
-| `scripts/setup-agent.ts` | Optional: baseline ElevenLabs agent config + webhook URL reminder |
-
----
-
-## Prerequisites
-
-- **Node.js** 18+ (LTS recommended)
-- **npm**
-- API keys (see below). Never commit real keys; use `.env` locally and Vercel env for production.
+| `src/pages/Index.tsx` | Landing page: URL validation, sample posts |
+| `src/components/CaseWorkspace.tsx` | Tabs: AI Trial, Voice Trial, Post, Comments, Receipts, Verdict |
+| `src/components/AgentDebate.tsx` | Live agent-vs-agent text debate using ElevenLabs ConvAI |
+| `src/components/VoiceTrial.tsx` | Live voice conversation with Judge agent |
+| `server/index.ts` | Express API: ingest, agent session, debate, Firecrawl webhook |
+| `api/_lib/reddit.ts` | Shared Reddit parse/jury/debate helpers for Vercel |
+| `api/reddit/ingest.ts` | Vercel: Reddit data ingest |
+| `api/agent/start-session.ts` | Vercel: patch Judge agent + return signed WebSocket URL |
+| `api/agent/start-debate.ts` | Vercel: patch Prosecutor + Defense agents, return signed URLs |
+| `api/agent/tools/search-evidence.ts` | Webhook: ElevenLabs agent tool → Firecrawl Search |
+| `remotion/` | Video compositions, overlays, Root.tsx |
+| `scripts/render-story-reel.ts` | E2E video: fetch → agent debate → TTS → Remotion → MP4 |
+| `scripts/setup-agent.ts` | One-time agent configuration helper |
 
 ---
 
 ## Environment variables
 
-Create a **`.env`** in the repo root (see `.gitignore`; it is not committed).
+Create `.env` in the repo root:
 
-| Variable | Used for |
-|----------|-----------|
-| `ELEVENLABS_API_KEY` | TTS, ConvAI agent API, signed URLs |
-| `ELEVENLABS_AGENT_ID` | ConvAI agent id for voice trial |
-| `FIRECRAWL_API_KEY` | Receipts on ingest + `search_evidence` tool |
-| `ELEVENLABS_MALE_VOICE_ID` / `ELEVENLABS_FEMALE_VOICE_ID` (or `ELEVENLABS_NARRATOR_VOICE_ID`) | Video narration voice selection in render script |
-
-Optional: run `npx tsx scripts/setup-agent.ts https://your-deployment.vercel.app` after deploying so printed instructions match your webhook URL. Configure the **`search_evidence`** server tool in the ElevenLabs dashboard to point at:
-
-`https://<your-domain>/api/agent/tools/search-evidence`
-
-Enable **conversation overrides** for dynamic prompt / first message if the dashboard requires it.
+```env
+ELEVENLABS_API_KEY=sk_...
+ELEVENLABS_AGENT_ID=agent_...           # Judge agent
+ELEVENLABS_PROSECUTOR_AGENT_ID=agent_... # Prosecutor agent
+ELEVENLABS_DEFENSE_AGENT_ID=agent_...    # Defense agent
+FIRECRAWL_API_KEY=fc-...
+ELEVENLABS_FEMALE_VOICE_ID=...           # TTS voice for female narration
+ELEVENLABS_MALE_VOICE_ID=...             # TTS voice for male narration
+```
 
 ---
 
-## Install
+## Install & run
 
 ```sh
 git clone <repo-url>
 cd the-verdict-bot
 npm install
-# If peer dependency errors appear:
-# npm install --legacy-peer-deps
 ```
 
-Copy `.env` from a teammate or create one using the table above.
-
----
-
-## How to run locally (recommended for full features)
-
-Vite proxies **`/api`** to the Express server (`vite.config.ts`).
+### Local development (recommended)
 
 ```sh
 npm run dev:all
 ```
 
-- **Frontend:** http://localhost:8080 (or the port Vite prints)
-- **API:** http://localhost:3001
+- Frontend: http://localhost:8080
+- API: http://localhost:3001
 
-**Alternative (two terminals):**
+### Testing the features
 
-```sh
-npm run server   # API on 3001
-npm run dev      # Vite (proxies /api → 3001)
-```
+1. Open the app and paste a Reddit AITA post URL
+2. **AI Trial tab** — Click "Start AI Trial" to watch Prosecutor vs Defense agents debate live
+3. **Voice Trial tab** — Allow microphone, click "Start Voice Trial" to talk with the Judge agent
+4. **Verdict tab** — See the final verdict based on Reddit comments and agent analysis
 
-### What to test in the browser
+### Render a video
 
-1. Open the app URL.
-2. Paste a **reddit.com** post URL in the form  
-   `https://www.reddit.com/r/<subreddit>/comments/<id>/...`
-3. Submit — you should see **post**, **comments**, **debate** tab, **receipts** (if Firecrawl is configured), **verdict**.
-4. Open **Voice Trial** — allow microphone — **Start Voice Trial**. The backend patches the agent and returns a signed session URL.
-5. Use **Text Trial** to watch the scripted chat without voice.
-
-### Quick API checks (optional)
+Requires **FFmpeg** on PATH. Background video at `public/video/parkour-bg.mp4` (add locally; gitignored).
 
 ```sh
-# Ingest (replace URL)
-curl -s -X POST http://localhost:3001/api/reddit/ingest \
-  -H "Content-Type: application/json" \
-  -d "{\"url\":\"https://www.reddit.com/r/AmItheAsshole/comments/13xga9y/aita_for_uninviting_my_sister_to_my_wedding/\"}"
-```
-
-Voice session (local; uses Reddit fetch on server):
-
-```sh
-curl -s -X POST http://localhost:3001/api/agent/start-session \
-  -H "Content-Type: application/json" \
-  -d "{\"url\":\"https://www.reddit.com/r/AmItheAsshole/comments/13xga9y/aita_for_uninviting_my_sister_to_my_wedding/\"}"
-```
-
----
-
-## Deployed demo (Vercel)
-
-Production builds use **`api/*`** for serverless routes. **Reddit often returns 403** when called from cloud IPs; the **Voice Trial** flow sends **`caseBundle`** from the client after a successful ingest so the agent can start without the server re-fetching Reddit.
-
-Set the same env vars on the Vercel project. After changing env vars, **redeploy** so functions pick up configuration as expected.
-
----
-
-## Render the story video (local)
-
-Requires **FFmpeg** on PATH (Remotion uses it). Reddit + ElevenLabs must work from your machine.
-
-```sh
-# Optional: pass Reddit URL as first argument; otherwise a default sample URL is used
 npx tsx scripts/render-story-reel.ts "https://www.reddit.com/r/AmItheAsshole/comments/..."
 ```
 
-Or:
+The video pipeline:
+1. Fetches Reddit post + comments
+2. Runs ElevenLabs agents server-side via `simulateConversation` API
+3. Interleaves Prosecutor/Defense responses into debate transcript
+4. Generates TTS narration with timestamps
+5. Renders with Remotion → outputs `aitah-story-reel-60s.mp4`
 
-```sh
-npm run render:story -- "https://www.reddit.com/r/AmItheAsshole/comments/..."
+---
+
+## End-to-end architecture
+
+```
+User pastes Reddit URL
+        │
+        ▼
+┌─────────────────────────────────────────────────┐
+│  POST /api/reddit/ingest                        │
+│  • Fetch Reddit .json API                       │
+│  • Parse comments → jury votes (NTA/YTA/ESH)    │
+│  • Search Firecrawl for "receipts"              │
+│  • Return caseBundle to frontend                │
+└────────────────────┬────────────────────────────┘
+                     │
+        ┌────────────┼────────────────┐
+        ▼            ▼                ▼
+   AI Trial     Voice Trial      Video Render
+        │            │                │
+        ▼            ▼                ▼
+  POST /api/    POST /api/      simulateConversation
+  agent/        agent/          REST API (server-side)
+  start-debate  start-session         │
+        │            │                ▼
+        ▼            ▼          Two agents debate
+  PATCH both    PATCH Judge     via ElevenLabs API
+  agents with   with case       (no WebSocket needed)
+  case context  context               │
+        │            │                ▼
+        ▼            ▼          Build transcript
+  Return 2      Return 1       + TTS narration
+  signed URLs   signed URL     + Remotion render
+        │            │                │
+        ▼            ▼                ▼
+  Frontend:     Frontend:       MP4 output
+  WebSocket     WebSocket       (60-90 seconds)
+  text-only     audio mode
+  debate        conversation
+
+  Agents can call search_evidence tool
+        │
+        ▼
+  /api/agent/tools/search-evidence
+        │
+        ▼
+  Firecrawl Search API
+        │
+        ▼
+  Returns evidence snippets to agent
 ```
 
-Default output file: **`aitah-story-reel-60s.mp4`** in the project root (see console log at end of run). Background video is expected at `public/video/parkour-bg.mp4` if you use the parkour asset (add locally; large files are gitignored).
+---
 
-**Remotion preview** (no full render):
+## Vercel deployment
 
-```sh
-npm run remotion:preview
+The frontend + serverless API functions deploy to Vercel. Set the same env vars on the Vercel project.
+
+Note: Reddit often returns 403 from cloud IPs. The frontend sends the full `caseBundle` to agent session endpoints so they don't need to re-fetch from Reddit.
+
+The `search_evidence` webhook URL in ElevenLabs agent configuration should point to:
+```
+https://<your-vercel-domain>/api/agent/tools/search-evidence
 ```
 
-**Note:** `POST /api/reels/render` on the Express server spawns the render script locally; this is **not** suitable for Vercel serverless.
+---
+
+## Security
+
+- Reddit URL validation on client and server
+- Rate limiting on Express API routes
+- API keys stored in env only; never committed
 
 ---
 
-## Other scripts
+## License
 
-| Command | Purpose |
-|---------|---------|
-| `npm run build` | Production Vite build → `dist/` |
-| `npm run lint` | ESLint |
-| `npm test` | Vitest |
-
----
-
-## End-to-end flow (mental model)
-
-```mermaid
-flowchart LR
-  subgraph Web
-    A[User: Reddit URL] --> B[POST /api/reddit/ingest]
-    B --> C[Case workspace UI]
-    C --> D[Voice Trial]
-    D --> E[POST /api/agent/start-session]
-    E --> F[ElevenLabs ConvAI]
-    F --> G[Tool: search_evidence]
-    G --> H[Firecrawl Search]
-  end
-  subgraph LocalVideo
-    I[render-story-reel.ts] --> J[Reddit + TTS + Remotion]
-    J --> K[MP4 reel]
-  end
-```
-
-1. **Ingest** loads and shapes data for the UI.  
-2. **Voice trial** reuses that data (on Vercel) or refetches by URL (local).  
-3. **Video** is a separate pipeline that does its own fetch + audio + render.
-
----
-
-## Security notes
-
-- Reddit URL validation on client and server; rate limiting on `/api/*` (Express).
-- Keep API keys in env only; rotate if exposed.
-
----
-
-## License / attribution
-
-Built for a hackathon-style demo integrating **ElevenLabs** and **Firecrawl**. Original scaffolding may include Lovable-generated pieces; this README describes the current **Verdict Bot** architecture and workflows.
+Built for the [ElevenLabs Hackathon](https://hacks.elevenlabs.io/hackathons/0). Integrates ElevenLabs Conversational AI Agents and Firecrawl Search API.

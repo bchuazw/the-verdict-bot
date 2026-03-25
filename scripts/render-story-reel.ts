@@ -2,6 +2,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import dotenv from "dotenv";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 
@@ -586,6 +587,185 @@ function mapChunkTiming(
 }
 
 /* ════════════════════════════════════════════════════
+   Server-side ElevenLabs Agent Debate (simulateConversation REST API)
+   ════════════════════════════════════════════════════ */
+
+interface AgentTurn {
+  role: "prosecutor" | "defense";
+  text: string;
+}
+
+async function patchAgent(apiKey: string, agentId: string, prompt: string, firstMessage: string) {
+  const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+    method: "PATCH",
+    headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      conversation_config: {
+        agent: { prompt: { prompt }, first_message: firstMessage },
+      },
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Agent PATCH failed (${agentId}): ${res.status} ${err}`);
+  }
+}
+
+async function runServerSideAgentDebate(
+  post: ScrapedPost,
+  comments: ParsedComment[],
+  jury: JurySummary,
+): Promise<AgentTurn[]> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const prosId = process.env.ELEVENLABS_PROSECUTOR_AGENT_ID;
+  const defId = process.env.ELEVENLABS_DEFENSE_AGENT_ID;
+
+  if (!apiKey || !prosId || !defId) {
+    console.log("  Agent IDs not configured, skipping live debate");
+    return [];
+  }
+
+  const client = new ElevenLabsClient({ apiKey });
+
+  const yta = comments.filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH").sort((a, b) => b.score - a.score);
+  const nta = comments.filter((c) => c.verdictTag === "NTA").sort((a, b) => b.score - a.score);
+  const juryLine = Object.entries(jury.verdictCounts).sort(([, a], [, b]) => b - a).map(([k, v]) => `${k}: ${v}`).join(", ");
+
+  let ctx = `TITLE: ${post.title}\nAUTHOR: u/${post.author}\nSUBREDDIT: r/${post.subreddit}\n\nPOST:\n${post.body.slice(0, 1500)}\n\nJURY (${jury.analyzedCount} votes): ${juryLine}\n`;
+  ctx += "\nYTA/ESH COMMENTS:\n";
+  for (const c of yta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} pts): "${trunc(c.body)}"\n`;
+  ctx += "\nNTA COMMENTS:\n";
+  for (const c of nta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} pts): "${trunc(c.body)}"\n`;
+
+  const caseTitle = post.title;
+  const prosPrompt = `You are The Prosecutor in an AITA Reddit courtroom trial. Argue OP IS the asshole (YTA). Keep every response to 2-3 punchy sentences MAX. Quote Reddit comments as evidence. Be dramatic, fierce, and quotable. Never break character.\n\nCASE:\n${ctx}`;
+  const defPrompt = `You are The Defense Attorney in an AITA Reddit courtroom trial. Argue OP is NOT the asshole (NTA). Keep every response to 2-3 punchy sentences MAX. Quote Reddit comments as evidence. Be passionate and persuasive. Never break character.\n\nCASE:\n${ctx}`;
+
+  console.log("  Patching agents with case context...");
+  await Promise.all([
+    patchAgent(apiKey, prosId, prosPrompt, `The prosecution is ready. Case: "${caseTitle}". Reddit jury: ${juryLine}. Let me present why OP is the asshole.`),
+    patchAgent(apiKey, defId, defPrompt, `The defense is ready. Case: "${caseTitle}". Reddit jury: ${juryLine}. Let me explain why OP is NOT the asshole.`),
+  ]);
+
+  const simulatedUserPrompt = `You are a courtroom moderator. Ask the lawyer to present arguments about this Reddit AITA case: "${caseTitle}". Ask for opening argument first, then ask them to respond to counterarguments, then ask for a closing statement. Keep your prompts to 1 sentence each.`;
+
+  console.log("  Running simulateConversation for both agents...");
+  const [prosResult, defResult] = await Promise.all([
+    client.conversationalAi.agents.simulateConversation(prosId, {
+      simulationSpecification: {
+        simulatedUserConfig: {
+          prompt: { prompt: simulatedUserPrompt },
+          firstMessage: `Present your opening argument: why is the OP in "${caseTitle}" the asshole?`,
+          language: "en",
+        },
+      },
+      newTurnsLimit: 6,
+    }),
+    client.conversationalAi.agents.simulateConversation(defId, {
+      simulationSpecification: {
+        simulatedUserConfig: {
+          prompt: { prompt: simulatedUserPrompt },
+          firstMessage: `Present your opening argument: why is the OP in "${caseTitle}" NOT the asshole?`,
+          language: "en",
+        },
+      },
+      newTurnsLimit: 6,
+    }),
+  ]);
+
+  const prosData = (prosResult as any).body ?? prosResult;
+  const defData = (defResult as any).body ?? defResult;
+
+  const prosMessages = (prosData.simulatedConversation ?? prosData.simulated_conversation ?? [])
+    .filter((t: any) => t.role === "agent" && t.message)
+    .map((t: any) => t.message as string);
+  const defMessages = (defData.simulatedConversation ?? defData.simulated_conversation ?? [])
+    .filter((t: any) => t.role === "agent" && t.message)
+    .map((t: any) => t.message as string);
+
+  const turns: AgentTurn[] = [];
+  const maxLen = Math.max(prosMessages.length, defMessages.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < prosMessages.length) {
+      turns.push({ role: "prosecutor", text: prosMessages[i] });
+      console.log(`    [Prosecutor ${i + 1}] ${trunc(prosMessages[i], 80)}`);
+    }
+    if (i < defMessages.length) {
+      turns.push({ role: "defense", text: defMessages[i] });
+      console.log(`    [Defense ${i + 1}] ${trunc(defMessages[i], 80)}`);
+    }
+  }
+
+  console.log(`  Agent debate complete: ${turns.length} turns`);
+  return turns;
+}
+
+function buildDebateFromAgentTranscript(
+  turns: AgentTurn[],
+  debateStartFrame: number,
+  debateEndFrame: number,
+  fps: number,
+): { messages: VideoDebateMessage[]; narration: string } {
+  const totalAvail = debateEndFrame - debateStartFrame;
+  const CONVO_RATIO = 0.55;
+  const convoEnd = debateStartFrame + Math.round(totalAvail * CONVO_RATIO);
+
+  const msgs: VideoDebateMessage[] = [];
+  let f = debateStartFrame + Math.round(0.5 * fps);
+  const convoGap = Math.round((convoEnd - f) / Math.max(turns.length, 1));
+  const tags = ["OPENING", "REBUTTAL", "EVIDENCE", "COUNTER", "CLOSING", "CLOSING"];
+
+  for (let i = 0; i < Math.min(turns.length, 4); i++) {
+    const t = turns[i];
+    msgs.push({
+      displayName: t.role === "prosecutor" ? "Prosecutor" : "Defense",
+      text: trunc(t.text, 140),
+      color: t.role === "prosecutor" ? "#ef4444" : "#22c55e",
+      startFrame: f,
+      endFrame: convoEnd,
+      tag: tags[i] ?? "ARGUMENT",
+    });
+    f = Math.min(f + convoGap, convoEnd - Math.round(fps * 0.5));
+  }
+
+  const summaryStart = convoEnd + Math.round(0.3 * fps);
+  const SUMMARY_GAP = Math.round(3.5 * fps);
+
+  const prosTurns = turns.filter((t) => t.role === "prosecutor");
+  const defTurns = turns.filter((t) => t.role === "defense");
+
+  const prosSummary = prosTurns.map((t) => t.text).join(" ").slice(0, 300);
+  const defSummary = defTurns.map((t) => t.text).join(" ").slice(0, 300);
+
+  msgs.push({
+    displayName: "PROSECUTION",
+    text: trunc(prosSummary, 280),
+    color: "#ef4444",
+    startFrame: summaryStart,
+    endFrame: debateEndFrame,
+    isSummary: true,
+  });
+
+  msgs.push({
+    displayName: "DEFENSE",
+    text: trunc(defSummary, 280),
+    color: "#22c55e",
+    startFrame: summaryStart + SUMMARY_GAP,
+    endFrame: debateEndFrame,
+    isSummary: true,
+  });
+
+  const narrationParts = ["Now two ElevenLabs AI agents debate this case live."];
+  if (prosTurns[0]) narrationParts.push(`The prosecution opens: ${firstSentence(prosTurns[0].text, 60)}.`);
+  if (defTurns[0]) narrationParts.push(`The defense fires back: ${firstSentence(defTurns[0].text, 60)}.`);
+  if (prosTurns.length > 1) narrationParts.push(`The prosecution doubles down: ${firstSentence(prosTurns[1].text, 50)}.`);
+  if (defTurns.length > 1) narrationParts.push(`But the defense counters: ${firstSentence(defTurns[1].text, 50)}.`);
+  narrationParts.push("Here are the final arguments from each side.");
+
+  return { messages: msgs, narration: narrationParts.join(" ") };
+}
+
+/* ════════════════════════════════════════════════════
    Main
    ════════════════════════════════════════════════════ */
 
@@ -632,6 +812,12 @@ async function main() {
   console.log(`  Gender  : ${gender}`);
   console.log(`  Voice   : ${voiceId}`);
 
+  /* ── 4b. Run live ElevenLabs agent debate ── */
+  console.log("\n\u2694\uFE0F  Step 2b \u2014 Running ElevenLabs Agent Debate...");
+  const agentTurns = await runServerSideAgentDebate(post, comments, jury);
+  const usedLiveDebate = agentTurns.length >= 2;
+  console.log(`  Live debate: ${usedLiveDebate ? `YES (${agentTurns.length} turns)` : "NO (fallback to scripted)"}`);
+
   /* ── 5. Text processing ── */
   console.log("\n\u2702\uFE0F  Step 4 \u2014 Processing text...");
   const condensed = condense(post.body, 180);
@@ -644,7 +830,9 @@ async function main() {
     .replace(/^AITA\s/i, "Am I the asshole ")
     .replace(/\??\s*$/, "?");
   const storyText = chunks.join(" ");
-  const debateNarration = buildDebateNarration(comments);
+  const debateNarration = usedLiveDebate
+    ? buildDebateFromAgentTranscript(agentTurns, 0, 100, 30).narration
+    : buildDebateNarration(comments);
   const oneLiner = generateOneLiner(verdictLabel);
   const verdictNarration = `After hearing both ElevenLabs AI agents argue their case, the verdict is in. ${verdictLabel}. ${oneLiner}`;
   const ctaLine = "Do you agree? Drop your verdict in the comments.";
@@ -704,14 +892,27 @@ async function main() {
 
   /* ── 9. Build debate visual messages ── */
   const debateEndFrame = Math.round(verdictStartSec * FPS) - 10;
-  const videoDebateMessages = buildVideoDebateMessages(
-    comments,
-    jury,
-    Math.round(debateStartSec * FPS),
-    debateEndFrame,
-    FPS,
-  );
-  console.log(`  Debate msgs: ${videoDebateMessages.length}`);
+  let videoDebateMessages: VideoDebateMessage[];
+
+  if (usedLiveDebate) {
+    const result = buildDebateFromAgentTranscript(
+      agentTurns,
+      Math.round(debateStartSec * FPS),
+      debateEndFrame,
+      FPS,
+    );
+    videoDebateMessages = result.messages;
+    console.log(`  Debate msgs: ${videoDebateMessages.length} (LIVE from ElevenLabs agents)`);
+  } else {
+    videoDebateMessages = buildVideoDebateMessages(
+      comments,
+      jury,
+      Math.round(debateStartSec * FPS),
+      debateEndFrame,
+      FPS,
+    );
+    console.log(`  Debate msgs: ${videoDebateMessages.length} (scripted fallback)`);
+  }
 
   /* ── 10. Check video background ── */
   const hasVideo = fs.existsSync(
