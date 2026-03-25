@@ -59,6 +59,7 @@ interface VideoDebateMessage {
   startFrame: number;
   endFrame: number;
   isSummary?: boolean;
+  tag?: string;
 }
 
 /* ════════════════════════════════════════════════════
@@ -314,12 +315,19 @@ function buildDebateNarration(comments: ParsedComment[]): string {
     .sort((a, b) => b.score - a.score);
 
   const parts: string[] = [];
-  parts.push("Two ElevenLabs AI agents went head to head on this case.");
+  parts.push("Now two AI agents go head to head.");
 
   if (yta.length > 0)
-    parts.push(`The prosecution argues: ${firstSentence(yta[0].body, 70)}.`);
+    parts.push(`The prosecution opens with: ${firstSentence(yta[0].body, 60)}.`);
   if (nta.length > 0)
-    parts.push(`The defense fires back: ${firstSentence(nta[0].body, 70)}.`);
+    parts.push(`The defense fires back: ${firstSentence(nta[0].body, 60)}.`);
+
+  if (yta.length > 1)
+    parts.push(`The prosecution doubles down: ${firstSentence(yta[1].body, 50)}.`);
+  if (nta.length > 1)
+    parts.push(`But the defense counters: ${firstSentence(nta[1].body, 50)}.`);
+
+  parts.push("Let's see the final arguments from each side.");
 
   return parts.join(" ");
 }
@@ -347,20 +355,36 @@ function generateOneLiner(label: string): string {
    Build video debate messages (visual chat bubbles)
    ════════════════════════════════════════════════════ */
 
-function summarizeSide(comments: ParsedComment[], max = 3): string {
-  const pieces = comments
-    .slice(0, max)
-    .map((c) => {
-      const s = c.body.split(/[.!?\n]/).filter(Boolean);
-      return s.slice(0, 2).join(". ").trim();
-    })
-    .filter(Boolean);
-  return trunc(pieces.join(". ") + ".", 280);
+function buildSummary(comments: ParsedComment[], side: "YTA" | "NTA"): string {
+  if (comments.length === 0) {
+    return side === "YTA"
+      ? "The response was disproportionate. Even if the other party was wrong, escalation shows poor judgment and a lack of empathy for the broader consequences."
+      : "Setting boundaries is healthy and necessary. The poster acted in self-preservation after repeated disrespect, and the community overwhelmingly supports that choice.";
+  }
+
+  const sentences: string[] = [];
+  for (const c of comments.slice(0, 4)) {
+    const parts = c.body.split(/[.!?\n]/).filter((s) => s.trim().length > 15);
+    for (const p of parts.slice(0, 2)) {
+      sentences.push(p.trim());
+      if (sentences.length >= 4) break;
+    }
+    if (sentences.length >= 4) break;
+  }
+
+  const joined = sentences.join(". ").replace(/\.+/g, ".").trim();
+  if (!joined.endsWith(".")) return trunc(joined + ".", 320);
+  return trunc(joined, 320);
+}
+
+function extractQuote(c: ParsedComment, maxLen = 120): string {
+  const firstSent = c.body.split(/[.!?\n]/).filter((s) => s.trim().length > 10)[0]?.trim() ?? c.body;
+  return trunc(firstSent, maxLen);
 }
 
 function buildVideoDebateMessages(
   comments: ParsedComment[],
-  _jury: JurySummary,
+  jury: JurySummary,
   debateStartFrame: number,
   debateEndFrame: number,
   fps: number,
@@ -372,74 +396,64 @@ function buildVideoDebateMessages(
     .filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH")
     .sort((a, b) => b.score - a.score);
 
+  const totalAvail = debateEndFrame - debateStartFrame;
+  const CONVO_RATIO = 0.55;
+  const convoEnd = debateStartFrame + Math.round(totalAvail * CONVO_RATIO);
+
   const msgs: VideoDebateMessage[] = [];
   let f = debateStartFrame + Math.round(0.5 * fps);
-  const QUOTE_GAP = Math.round(1.8 * fps);
-  const SUMMARY_GAP = Math.round(2.5 * fps);
+  const MSG_GAP = Math.round(2.2 * fps);
 
-  if (yta[0]) {
+  const prosArgs = [
+    yta[0] ? `"${extractQuote(yta[0])}" — u/${yta[0].author} (${yta[0].score.toLocaleString()} upvotes)` : "OP escalated when they could have communicated. That's a choice with consequences.",
+    yta[1] ? `"${extractQuote(yta[1])}" — u/${yta[1].author} agrees` : "Even if the other party was wrong, the response needs to match. This was disproportionate.",
+    yta[2] ? `"${extractQuote(yta[2], 100)}"` : "Multiple Reddit users flagged this as an overreaction.",
+  ];
+  const defArgs = [
+    nta[0] ? `"${extractQuote(nta[0])}" — u/${nta[0].author} (${nta[0].score.toLocaleString()} upvotes)` : "OP set a boundary. That's healthy, not dramatic.",
+    nta[1] ? `"${extractQuote(nta[1])}" — u/${nta[1].author} backs this up` : "Boundaries aren't punishments — they're self-preservation.",
+    nta[2] ? `"${extractQuote(nta[2], 100)}"` : `${jury.verdictCounts["NTA"] ?? 0} Redditors voted NTA. The people have spoken.`,
+  ];
+
+  const convoMsgs: Array<{ side: "pros" | "def"; text: string; tag: string }> = [
+    { side: "pros", text: prosArgs[0], tag: "OPENING" },
+    { side: "def", text: defArgs[0], tag: "REBUTTAL" },
+    { side: "pros", text: prosArgs[1], tag: "EVIDENCE" },
+    { side: "def", text: defArgs[1], tag: "COUNTER" },
+  ];
+
+  const convoGap = Math.min(MSG_GAP, Math.round((convoEnd - f) / convoMsgs.length));
+
+  for (const cm of convoMsgs) {
+    if (f >= convoEnd - fps) break;
     msgs.push({
-      displayName: "Prosecutor",
-      text: trunc(yta[0].body, 100),
-      color: "#ef4444",
+      displayName: cm.side === "pros" ? "Prosecutor" : "Defense",
+      text: cm.text,
+      color: cm.side === "pros" ? "#ef4444" : "#22c55e",
       startFrame: f,
-      endFrame: debateEndFrame,
+      endFrame: convoEnd,
+      tag: cm.tag,
     });
-    f += QUOTE_GAP;
+    f = Math.min(f + convoGap, convoEnd - Math.round(fps * 0.5));
   }
 
-  if (nta[0]) {
-    msgs.push({
-      displayName: "Defense",
-      text: trunc(nta[0].body, 100),
-      color: "#22c55e",
-      startFrame: f,
-      endFrame: debateEndFrame,
-    });
-    f += QUOTE_GAP;
-  }
+  const summaryStart = convoEnd + Math.round(0.3 * fps);
+  const SUMMARY_GAP = Math.round(3.5 * fps);
 
-  if (yta[1]) {
-    msgs.push({
-      displayName: "Prosecutor",
-      text: trunc(yta[1].body, 100),
-      color: "#ef4444",
-      startFrame: f,
-      endFrame: debateEndFrame,
-    });
-    f += QUOTE_GAP;
-  }
-
-  if (nta[1]) {
-    msgs.push({
-      displayName: "Defense",
-      text: trunc(nta[1].body, 100),
-      color: "#22c55e",
-      startFrame: f,
-      endFrame: debateEndFrame,
-    });
-    f += QUOTE_GAP;
-  }
-
-  f += SUMMARY_GAP - QUOTE_GAP;
-
-  const prosSummary = summarizeSide(yta);
   msgs.push({
-    displayName: "PROSECUTION SUMMARY",
-    text: prosSummary,
+    displayName: "PROSECUTION",
+    text: buildSummary(yta, "YTA"),
     color: "#ef4444",
-    startFrame: f,
+    startFrame: summaryStart,
     endFrame: debateEndFrame,
     isSummary: true,
   });
-  f += SUMMARY_GAP;
 
-  const defSummary = summarizeSide(nta);
   msgs.push({
-    displayName: "DEFENSE SUMMARY",
-    text: defSummary,
+    displayName: "DEFENSE",
+    text: buildSummary(nta, "NTA"),
     color: "#22c55e",
-    startFrame: f,
+    startFrame: summaryStart + SUMMARY_GAP,
     endFrame: debateEndFrame,
     isSummary: true,
   });
@@ -674,7 +688,7 @@ async function main() {
     storyEndSec + 0.3;
   const verdictStartSec =
     findTextTimestamp(tts.alignment, fullNarration, "the verdict is in") ??
-    debateStartSec + 14;
+    debateStartSec + 20;
   const ctaStartSec =
     findTextTimestamp(tts.alignment, fullNarration, ctaLine) ??
     verdictStartSec + 8;
