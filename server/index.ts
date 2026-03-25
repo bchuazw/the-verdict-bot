@@ -493,6 +493,59 @@ ${ctx}`;
   }
 });
 
+app.post("/api/agent/start-debate", async (req, res) => {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const prosId = process.env.ELEVENLABS_PROSECUTOR_AGENT_ID;
+  const defId = process.env.ELEVENLABS_DEFENSE_AGENT_ID;
+
+  if (!apiKey || !prosId || !defId) {
+    return res.status(500).json({ error: "Debate agents not configured" });
+  }
+
+  try {
+    const bundle = req.body?.caseBundle;
+    if (!bundle?.post) return res.status(400).json({ error: "caseBundle required" });
+
+    console.log(`\n⚔️ Starting agent debate for: ${bundle.post.title}`);
+
+    const yta = (bundle.comments ?? []).filter((c: any) => c.verdictTag === "YTA" || c.verdictTag === "ESH").sort((a: any, b: any) => b.score - a.score);
+    const nta = (bundle.comments ?? []).filter((c: any) => c.verdictTag === "NTA").sort((a: any, b: any) => b.score - a.score);
+    const juryLine = Object.entries(bundle.jury?.verdictCounts ?? {}).sort(([, a]: any, [, b]: any) => (b as number) - (a as number)).map(([k, v]) => `${k}: ${v}`).join(", ");
+
+    let ctx = `TITLE: ${bundle.post.title}\nAUTHOR: u/${bundle.post.author}\nSUBREDDIT: r/${bundle.post.subreddit}\n\nPOST:\n${(bundle.post.body ?? "").slice(0, 1500)}\n\nJURY (${bundle.jury?.analyzedCount ?? 0} votes): ${juryLine}\n`;
+    ctx += "\nYTA/ESH COMMENTS:\n";
+    for (const c of yta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} pts): "${trunc(c.body)}"\n`;
+    ctx += "\nNTA COMMENTS:\n";
+    for (const c of nta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} pts): "${trunc(c.body)}"\n`;
+
+    const prosPrompt = `You are The Prosecutor in an AITA Reddit courtroom trial. Argue OP IS the asshole (YTA). Keep responses to 2-4 punchy sentences. Quote Reddit comments. Use search_evidence for external evidence. Be dramatic and quotable.\n\nCASE:\n${ctx}`;
+    const defPrompt = `You are The Defense Attorney in an AITA Reddit courtroom trial. Argue OP is NOT the asshole (NTA). Keep responses to 2-4 punchy sentences. Quote Reddit comments. Use search_evidence for external evidence. Be passionate and persuasive.\n\nCASE:\n${ctx}`;
+
+    async function patchAndSign(agentId: string, prompt: string, firstMsg: string) {
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "xi-api-key": apiKey!, "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_config: { agent: { prompt: { prompt }, first_message: firstMsg } } }),
+      });
+      const signRes = await fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`, { headers: { "xi-api-key": apiKey! } });
+      if (!signRes.ok) throw new Error(`Signed URL failed for ${agentId}`);
+      const { signed_url } = (await signRes.json()) as { signed_url: string };
+      return signed_url;
+    }
+
+    const [prosUrl, defUrl] = await Promise.all([
+      patchAndSign(prosId, prosPrompt, `The prosecution is ready. Case: "${bundle.post.title}". Jury: ${juryLine}.`),
+      patchAndSign(defId, defPrompt, `The defense is ready. Case: "${bundle.post.title}". Jury: ${juryLine}.`),
+    ]);
+
+    console.log("  Both agents configured + signed URLs generated");
+    res.json({ prosecutorSignedUrl: prosUrl, defenseSignedUrl: defUrl, caseTitle: bundle.post.title });
+  } catch (err: unknown) {
+    console.error("Debate error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
 app.post("/api/agent/tools/search-evidence", async (req, res) => {
   const query = req.body?.query ?? req.body?.parameters?.query ?? req.body?.tool_call?.parameters?.query;
 
@@ -709,9 +762,10 @@ app.use("/generated", express.static(path.resolve(ROOT, "public", "generated")))
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`\n⚖️  AITAH?! Server running on http://localhost:${PORT}`);
-  console.log(`   POST /api/reddit/ingest          — load a Reddit thread`);
-  console.log(`   POST /api/agent/start-session     — start voice trial`);
-  console.log(`   POST /api/agent/tools/search-evidence — agent Firecrawl webhook`);
-  console.log(`   POST /api/reels/render            — render a story reel`);
-  console.log(`   GET  /api/reels/download           — download latest reel\n`);
+  console.log(`   POST /api/reddit/ingest               — load a Reddit thread`);
+  console.log(`   POST /api/agent/start-debate          — start AI trial (agent vs agent)`);
+  console.log(`   POST /api/agent/start-session          — start voice trial (human vs agent)`);
+  console.log(`   POST /api/agent/tools/search-evidence  — agent Firecrawl webhook`);
+  console.log(`   POST /api/reels/render                 — render a story reel`);
+  console.log(`   GET  /api/reels/download                — download latest reel\n`);
 });

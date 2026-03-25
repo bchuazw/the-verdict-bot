@@ -314,7 +314,7 @@ function buildDebateNarration(comments: ParsedComment[]): string {
     .sort((a, b) => b.score - a.score);
 
   const parts: string[] = [];
-  parts.push("Two AI agents debated this case.");
+  parts.push("Two ElevenLabs AI agents went head to head on this case.");
 
   if (yta.length > 0)
     parts.push(`The prosecution argues: ${firstSentence(yta[0].body, 70)}.`);
@@ -632,7 +632,7 @@ async function main() {
   const storyText = chunks.join(" ");
   const debateNarration = buildDebateNarration(comments);
   const oneLiner = generateOneLiner(verdictLabel);
-  const verdictNarration = `After hearing both AI agents argue their case, the verdict is in. ${verdictLabel}. ${oneLiner}`;
+  const verdictNarration = `After hearing both ElevenLabs AI agents argue their case, the verdict is in. ${verdictLabel}. ${oneLiner}`;
   const ctaLine = "Do you agree? Drop your verdict in the comments.";
 
   const fullNarration = [
