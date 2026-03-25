@@ -379,6 +379,147 @@ async function searchFirecrawlReceipts(query: string): Promise<Receipt[]> {
 }
 
 /* ═══════════════════════════════════════════════════
+   Agent routes (ElevenLabs Conversational AI)
+   ═══════════════════════════════════════════════════ */
+
+app.post("/api/agent/start-session", async (req, res) => {
+  const agentId = process.env.ELEVENLABS_AGENT_ID;
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!agentId || !apiKey) {
+    return res.status(500).json({ error: "Agent not configured" });
+  }
+
+  try {
+    let url: string;
+    try {
+      url = sanitizeRedditUrl(req.body?.url);
+    } catch (e: unknown) {
+      return res.status(400).json({ error: e instanceof Error ? e.message : "Invalid URL" });
+    }
+
+    console.log(`\n🎙️ Starting voice trial for: ${url}`);
+
+    const raw = await fetchRedditThread(url);
+    const postData = (raw as any)[0]?.data?.children?.[0]?.data;
+    if (!postData) throw new Error("Could not parse Reddit post");
+
+    const post = {
+      title: postData.title as string,
+      body: ((postData.selftext as string) ?? "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+      subreddit: postData.subreddit as string,
+      author: postData.author as string,
+    };
+
+    const comments = parseComments(raw as unknown[]);
+    const jury = computeJury(comments);
+
+    const yta = comments.filter((c) => c.verdictTag === "YTA" || c.verdictTag === "ESH").sort((a, b) => b.score - a.score);
+    const nta = comments.filter((c) => c.verdictTag === "NTA").sort((a, b) => b.score - a.score);
+
+    const juryLine = Object.entries(jury.verdictCounts).sort(([, a], [, b]) => b - a).map(([k, v]) => `${k}: ${v}`).join(", ");
+    let ctx = `SUBREDDIT: r/${post.subreddit}\nAUTHOR: u/${post.author}\nTITLE: ${post.title}\n\nPOST:\n${post.body.slice(0, 1500)}\n\nJURY VOTES (${jury.analyzedCount} total): ${juryLine}\nMAJORITY: ${jury.majorityVerdict ?? "unclear"}\n`;
+    ctx += "\nTOP YTA/ESH COMMENTS (Prosecution evidence):\n";
+    for (const c of yta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} upvotes): "${trunc(c.body)}"\n`;
+    ctx += "\nTOP NTA COMMENTS (Defense evidence):\n";
+    for (const c of nta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} upvotes): "${trunc(c.body)}"\n`;
+
+    const systemPrompt = `You are Judge Verdict — a dramatic, entertaining, and slightly unhinged Reddit courtroom judge presiding over AITA cases.
+
+Your job is to run a dramatic trial:
+1. OPENING: Dramatically summarize the case in 2-3 punchy sentences.
+2. PROSECUTION: Present the strongest YTA arguments. Quote real Reddit comments.
+3. DEFENSE: Present the strongest NTA arguments. Quote real Reddit comments.
+4. EVIDENCE: Use your search_evidence tool to find external context about the situation.
+5. VERDICT: Deliver a dramatic verdict with reasoning. Slam the gavel.
+
+STYLE RULES:
+- Keep each response to 2-4 sentences MAX. Be punchy. TikTok-style entertainment.
+- Be funny, memeable, slightly chaotic. Think Judge Judy meets Reddit.
+- Reference upvote counts and user comments.
+- If the user challenges your verdict, engage with them. Be witty and dramatic.
+- After the verdict, invite the user to challenge you.
+
+CASE CONTEXT:
+${ctx}`;
+
+    const patchRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_config: {
+          agent: {
+            prompt: { prompt: systemPrompt },
+            first_message: `Order in the court! I'm Judge Verdict, and I've just reviewed the case: "${post.title}" from r/${post.subreddit}. ${jury.analyzedCount} Reddit jurors have already weighed in, and let me tell you... this one is SPICY. Say "begin the trial" and I'll present both sides, or ask me anything about the case.`,
+          },
+        },
+      }),
+    });
+
+    if (!patchRes.ok) {
+      const err = await patchRes.text();
+      console.error("Agent PATCH failed:", patchRes.status, err);
+      return res.status(500).json({ error: "Failed to configure agent" });
+    }
+
+    console.log("  Agent configured with case context");
+
+    const signedUrlRes = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
+      { headers: { "xi-api-key": apiKey } },
+    );
+    if (!signedUrlRes.ok) {
+      return res.status(500).json({ error: "Failed to get signed URL" });
+    }
+
+    const { signed_url } = (await signedUrlRes.json()) as { signed_url: string };
+    console.log("  Signed URL generated");
+
+    res.json({ signedUrl: signed_url, caseTitle: post.title });
+  } catch (err: unknown) {
+    console.error("Agent session error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
+app.post("/api/agent/tools/search-evidence", async (req, res) => {
+  const query = req.body?.query ?? req.body?.parameters?.query ?? req.body?.tool_call?.parameters?.query;
+
+  if (!query || typeof query !== "string") {
+    return res.json({ result: "No query provided." });
+  }
+
+  console.log(`  🔍 Agent searching: "${query}"`);
+
+  const fcKey = process.env.FIRECRAWL_API_KEY;
+  if (!fcKey) return res.json({ result: "Search unavailable." });
+
+  try {
+    const fcRes = await fetch("https://api.firecrawl.dev/v1/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${fcKey}` },
+      body: JSON.stringify({ query: `${query} AITA reddit etiquette advice`, limit: 3 }),
+    });
+
+    if (!fcRes.ok) return res.json({ result: `Search returned ${fcRes.status}.` });
+
+    const json = await fcRes.json();
+    const results = ((json as any)?.data ?? []).slice(0, 3).map((r: any) => ({
+      title: r.title ?? "Untitled",
+      url: r.url ?? "",
+      excerpt: ((r.markdown ?? r.description ?? "") as string).slice(0, 300),
+    }));
+
+    if (results.length === 0) return res.json({ result: "No evidence found." });
+
+    const formatted = results.map((r: any, i: number) => `[${i + 1}] "${r.title}" (${r.url})\n${r.excerpt}`).join("\n\n");
+    console.log(`  Found ${results.length} results`);
+    res.json({ result: `Found ${results.length} pieces of evidence:\n\n${formatted}` });
+  } catch {
+    res.json({ result: "Search failed." });
+  }
+});
+
+/* ═══════════════════════════════════════════════════
    Routes
    ═══════════════════════════════════════════════════ */
 
@@ -556,7 +697,9 @@ app.use("/generated", express.static(path.resolve(ROOT, "public", "generated")))
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`\n⚖️  AITAH?! Server running on http://localhost:${PORT}`);
-  console.log(`   POST /api/reddit/ingest — load a Reddit thread`);
-  console.log(`   POST /api/reels/render  — render a story reel`);
-  console.log(`   GET  /api/reels/download — download latest reel\n`);
+  console.log(`   POST /api/reddit/ingest          — load a Reddit thread`);
+  console.log(`   POST /api/agent/start-session     — start voice trial`);
+  console.log(`   POST /api/agent/tools/search-evidence — agent Firecrawl webhook`);
+  console.log(`   POST /api/reels/render            — render a story reel`);
+  console.log(`   GET  /api/reels/download           — download latest reel\n`);
 });

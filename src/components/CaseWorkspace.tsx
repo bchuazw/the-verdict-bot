@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import DiscussionChat, { type ChatMessage } from "./DiscussionChat";
+import VoiceTrial from "./VoiceTrial";
 
 interface RedditComment {
   id: string;
@@ -50,7 +51,7 @@ interface Props {
   onNewCase: () => void;
 }
 
-type Tab = "discussion" | "post" | "comments" | "receipts";
+type Tab = "voice-trial" | "discussion" | "post" | "comments" | "receipts";
 
 const VERDICT_BG: Record<string, string> = {
   NTA: "from-green-600/20 to-green-900/10 border-green-500/30",
@@ -80,7 +81,7 @@ const BAR_COLOR: Record<string, string> = {
 };
 
 export default function CaseWorkspace({ bundle, onNewCase }: Props) {
-  const [tab, setTab] = useState<Tab>("discussion");
+  const [tab, setTab] = useState<Tab>("voice-trial");
   const [rendering, setRendering] = useState(false);
   const [renderDone, setRenderDone] = useState(false);
 
@@ -144,7 +145,8 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
       <div className="flex gap-1 mb-5 overflow-x-auto">
         {(
           [
-            ["discussion", "\u2694\uFE0F Trial"],
+            ["voice-trial", "\uD83C\uDF99\uFE0F Voice Trial"],
+            ["discussion", "\u2694\uFE0F Text Trial"],
             ["post", "\uD83D\uDCDD Post"],
             ["comments", `\uD83D\uDCAC ${comments.length} Comments`],
             ["receipts", `\uD83D\uDD25 ${receipts.length} Receipts`],
@@ -167,6 +169,14 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Main content */}
         <div className="lg:col-span-2 bg-zinc-900/60 rounded-xl border border-zinc-800/80 overflow-hidden backdrop-blur-sm">
+          {tab === "voice-trial" && (
+            <VoiceTrial
+              postUrl={post.url}
+              postTitle={post.title}
+              onClose={() => setTab("discussion")}
+            />
+          )}
+
           {tab === "discussion" && (
             <DiscussionChat messages={debate} autoPlay delayMs={2400} />
           )}
