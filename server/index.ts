@@ -92,12 +92,47 @@ interface Receipt {
    ═══════════════════════════════════════════════════ */
 
 async function fetchRedditThread(url: string) {
-  const jsonUrl = url.replace(/\/?(\?.*)?$/, ".json");
-  const res = await fetch(jsonUrl, {
-    headers: { "User-Agent": "AITAH-Hackathon/1.0" },
+  const key = process.env.FIRECRAWL_API_KEY;
+  if (!key) throw new Error("FIRECRAWL_API_KEY not set");
+
+  const parsedPath = new URL(url).pathname.replace(/\/$/, "");
+  const jsonUrl = `https://www.reddit.com${parsedPath}.json?raw_json=1`;
+
+  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      url: jsonUrl,
+      formats: ["rawHtml"],
+      waitFor: 2000,
+    }),
   });
-  if (!res.ok) throw new Error(`Reddit ${res.status}`);
-  return res.json();
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Firecrawl scrape failed (${res.status}): ${body.slice(0, 200)}`);
+  }
+
+  const json = await res.json() as any;
+  const raw = json?.data?.rawHtml ?? json?.data?.html ?? "";
+  if (!raw) throw new Error("Firecrawl returned empty content");
+
+  const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  const text = preMatch ? preMatch[1] : raw;
+  const cleaned = text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"');
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    throw new Error("Failed to parse Reddit JSON from Firecrawl response");
+  }
 }
 
 function extractVerdictTag(body: string): string | null {
