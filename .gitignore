@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .env
 .env.*
+!.env.example
+.envrc
+.npmrc
 
 # Rendered output videos (large, per-run — keep locally)
 aitah-*.mp4
@@ -26,6 +29,14 @@ public/generated/
 
 # Vercel
 .vercel
+
+# Credentials / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
 
 # Editor directories and files
 .vscode/*

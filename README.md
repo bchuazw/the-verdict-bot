@@ -91,7 +91,13 @@ Firecrawl serves as the "evidence search engine" throughout the project:
 
 ## Environment variables
 
-Create `.env` in the repo root:
+Copy the template and fill in your keys:
+
+```sh
+cp .env.example .env
+```
+
+Then set values in `.env`:
 
 ```env
 ELEVENLABS_API_KEY=sk_...
@@ -216,6 +222,7 @@ https://<your-vercel-domain>/api/agent/tools/search-evidence
 - Reddit URL validation on client and server
 - Rate limiting on Express API routes
 - API keys stored in env only; never committed
+- Public release checklist in `SECURITY.md`
 
 ---
 
