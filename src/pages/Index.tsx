@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import CaseWorkspace, { type CaseBundle } from "@/components/CaseWorkspace";
 import { apiUrl } from "@/lib/api";
 
@@ -248,6 +249,13 @@ const Index = () => {
                   </motion.button>
                 ))}
               </div>
+
+              <Link
+                to="/guide"
+                className="mt-8 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Want to build your own? View the setup guide &rarr;
+              </Link>
             </motion.div>
           )}
 
