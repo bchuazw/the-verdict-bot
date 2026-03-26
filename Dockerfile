@@ -28,6 +28,8 @@ RUN npx remotion browser ensure
 
 COPY . .
 
+RUN npx tsx scripts/prebundle.ts
+
 EXPOSE 3001
 
 CMD ["node", "node_modules/.bin/tsx", "server/index.ts"]

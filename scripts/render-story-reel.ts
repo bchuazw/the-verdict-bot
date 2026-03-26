@@ -995,10 +995,10 @@ async function main() {
     (c) => c.verdictTag === "YTA" || c.verdictTag === "ESH",
   );
   const defComments = comments.filter((c) => c.verdictTag === "NTA");
-  const prosScore = prosComments.reduce((s, c) => s + c.score, 0);
-  const defScore = defComments.reduce((s, c) => s + c.score, 0);
+  const prosScore = Math.max(0, prosComments.reduce((s, c) => s + c.score, 0));
+  const defScore = Math.max(0, defComments.reduce((s, c) => s + c.score, 0));
   const totalScore = prosScore + defScore || 1;
-  const prosStrength = Math.round((prosScore / totalScore) * 100);
+  const prosStrength = Math.min(100, Math.max(0, Math.round((prosScore / totalScore) * 100)));
   const defStrength = 100 - prosStrength;
   const agentWinner = prosStrength >= defStrength ? "prosecution" : "defense";
   const confidence =
@@ -1037,17 +1037,42 @@ async function main() {
     hasVideoBackground: hasVideo,
   };
 
-  /* ── 12. Bundle ── */
-  console.log("\n\u{1F4E6} Step 7 \u2014 Bundling Remotion...");
-  const entryPoint = path.resolve(ROOT, "remotion", "index.ts");
-  const bundled = await bundle({
-    entryPoint,
-    publicDir: PUBLIC,
-    onProgress: (pct: number) => {
-      if (pct % 20 === 0) process.stdout.write(`  bundle: ${pct}%\r`);
-    },
-  });
-  console.log("  Bundle complete.\n");
+  /* ── 12. Bundle (use pre-built if available, otherwise build at runtime) ── */
+  console.log("\n\u{1F4E6} Step 7 \u2014 Preparing Remotion bundle...");
+  const prebundlePath = path.resolve(ROOT, "remotion-bundle");
+  let bundled: string;
+
+  if (fs.existsSync(path.join(prebundlePath, "index.html"))) {
+    console.log("  Using pre-built bundle (skipping webpack)");
+    bundled = prebundlePath;
+
+    const narrationSrc = path.join(GEN, "narration.mp3");
+    if (fs.existsSync(narrationSrc)) {
+      const narrationDst = path.join(prebundlePath, "generated", "narration.mp3");
+      fs.mkdirSync(path.dirname(narrationDst), { recursive: true });
+      fs.copyFileSync(narrationSrc, narrationDst);
+      console.log("  Copied narration.mp3 into bundle");
+    }
+
+    const videoBgSrc = path.join(PUBLIC, "video", "parkour-bg.mp4");
+    const videoBgDst = path.join(prebundlePath, "video", "parkour-bg.mp4");
+    if (fs.existsSync(videoBgSrc) && !fs.existsSync(videoBgDst)) {
+      fs.mkdirSync(path.dirname(videoBgDst), { recursive: true });
+      fs.copyFileSync(videoBgSrc, videoBgDst);
+      console.log("  Copied parkour-bg.mp4 into bundle");
+    }
+  } else {
+    console.log("  No pre-built bundle found, bundling now...");
+    const entryPoint = path.resolve(ROOT, "remotion", "index.ts");
+    bundled = await bundle({
+      entryPoint,
+      publicDir: PUBLIC,
+      onProgress: (pct: number) => {
+        if (pct % 20 === 0) process.stdout.write(`  bundle: ${pct}%\r`);
+      },
+    });
+  }
+  console.log("  Bundle ready.\n");
 
   /* ── 13. Render ── */
   const compositionId = "RedditStoryReel60";
@@ -1075,6 +1100,7 @@ async function main() {
     outputLocation: outputPath,
     inputProps,
     chromiumOptions: { enableMultiProcessOnLinux: true },
+    concurrency: 1,
     onProgress: ({ progress }: { progress: number }) => {
       process.stdout.write(
         `  Rendering: ${Math.round(progress * 100)}%\r`,

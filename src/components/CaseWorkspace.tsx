@@ -119,10 +119,22 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
         return;
       }
 
-      // Poll status endpoint because hosted backends can timeout long HTTP requests.
+      let networkErrors = 0;
+      const MAX_NETWORK_ERRORS = 5;
       for (let i = 0; i < 180; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const statusRes = await fetch(apiUrl("/api/reels/status"));
+        await new Promise((r) => setTimeout(r, 3000));
+        let statusRes: Response;
+        try {
+          statusRes = await fetch(apiUrl("/api/reels/status"));
+        } catch {
+          networkErrors++;
+          if (networkErrors >= MAX_NETWORK_ERRORS) {
+            setRenderError("Server unreachable — render may have failed. Please try again.");
+            return;
+          }
+          continue;
+        }
+        networkErrors = 0;
         const statusData = await statusRes.json().catch(() => null);
         if (!statusRes.ok) {
           setRenderError(statusData?.error ?? "Render failed on server");
@@ -140,7 +152,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
       }
       setRenderError("Render is taking longer than expected. Please try again in a bit.");
     } catch {
-      setRenderError("Network error while checking render status.");
+      setRenderError("Network error while starting render.");
     } finally {
       setRendering(false);
     }

@@ -23,6 +23,9 @@ aitah-*.mp4
 # Generated audio / assets (per-case, regenerated at runtime)
 public/generated/
 
+# Pre-built Remotion bundle (generated at Docker build time)
+remotion-bundle/
+
 # Background video asset used by Remotion (committed so teammates can render)
 # If you add more large videos, track them explicitly here.
 !public/video/parkour-bg.mp4
