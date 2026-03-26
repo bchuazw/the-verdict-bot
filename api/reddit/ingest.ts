@@ -1,47 +1,53 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   sanitizeRedditUrl,
   fetchRedditThread,
   buildCaseBundle,
-  buildFallbackCaseBundle,
   searchFirecrawlReceipts,
 } from "../_lib/reddit.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+export const config = { runtime: "edge" };
+
+export default async function handler(req: Request) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+
+  if (req.method !== "POST") {
+    return Response.json({ error: "POST only" }, { status: 405 });
+  }
 
   try {
+    const body = await req.json();
     let url: string;
     try {
-      url = sanitizeRedditUrl(req.body?.url);
+      url = sanitizeRedditUrl(body?.url);
     } catch (e: unknown) {
-      return res.status(400).json({ error: e instanceof Error ? e.message : "Invalid URL" });
+      return Response.json(
+        { error: e instanceof Error ? e.message : "Invalid URL" },
+        { status: 400 },
+      );
     }
 
-    let bundle: ReturnType<typeof buildCaseBundle>;
-    try {
-      const raw = await fetchRedditThread(url);
-      bundle = buildCaseBundle(raw, url);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("Reddit 403") || msg.includes("Firecrawl")) {
-        bundle = buildFallbackCaseBundle(url);
-      } else {
-        throw e;
-      }
-    }
+    const raw = await fetchRedditThread(url);
+    const bundle = buildCaseBundle(raw, url);
 
     const receipts = await searchFirecrawlReceipts(
       `${bundle.post.title} AITA reddit etiquette`,
     );
 
-    return res.json({ ...bundle, receipts });
+    return Response.json({ ...bundle, receipts });
   } catch (err: unknown) {
     console.error("Ingest error:", err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    return Response.json(
+      { error: err instanceof Error ? err.message : "Unknown error" },
+      { status: 500 },
+    );
   }
 }
