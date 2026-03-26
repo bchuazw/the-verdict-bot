@@ -316,23 +316,13 @@ function buildDebateNarration(comments: ParsedComment[]): string {
     .sort((a, b) => b.score - a.score);
 
   const parts: string[] = [
-    "Now it's time for the trial. Two AI agents will argue this case. Prosecution versus defense. Let the debate begin.",
+    "Now it's time for the trial.",
   ];
 
-  if (yta.length > 0)
-    parts.push(`The prosecution opens strong: ${firstSentence(yta[0].body, 80)}.`);
-  if (nta.length > 0)
-    parts.push(`But the defense fires back: ${firstSentence(nta[0].body, 80)}.`);
-  if (yta.length > 1)
-    parts.push(`The prosecution doubles down with new evidence: ${firstSentence(yta[1].body, 80)}.`);
-  else if (yta.length > 0)
-    parts.push(`The prosecution presses further: ${firstSentence(yta[0].body, 80)}.`);
-  if (nta.length > 1)
-    parts.push(`The defense counters with a strong rebuttal: ${firstSentence(nta[1].body, 80)}.`);
-  else if (nta.length > 0)
-    parts.push(`The defense stands firm: ${firstSentence(nta[0].body, 80)}.`);
-
-  parts.push("Here are the summarized arguments from both sides.");
+  const prosSummary = yta[0] ? firstSentence(stripLLMFluff(yta[0].body), 100) : "The response was disproportionate";
+  const defSummary = nta[0] ? firstSentence(stripLLMFluff(nta[0].body), 100) : "Setting boundaries is healthy";
+  parts.push(`The prosecution argues: ${prosSummary}.`);
+  parts.push(`The defense counters: ${defSummary}.`);
 
   return parts.join(" ");
 }
@@ -433,28 +423,18 @@ function buildVideoDebateMessages(
   const msgs: VideoDebateMessage[] = [];
   let f = debateStartFrame + Math.round(0.5 * fps);
 
-  const prosOpening = prosPool[0]
-    ? extractArgument(prosPool[0], 120)
-    : "They escalated when they could have communicated.";
-  const defOpening = nta[0]
-    ? extractArgument(nta[0], 120)
-    : "They set a reasonable boundary. That's healthy, not dramatic.";
-  const prosEvidence = prosPool[1]
-    ? extractArgument(prosPool[1], 160)
-    : prosPool[0]
-      ? extractArgument(prosPool[0], 160)
-      : "Even if the other party was wrong, the response was disproportionate.";
-  const defCounter = nta[1]
-    ? extractArgument(nta[1], 160)
-    : nta[0]
-      ? extractArgument(nta[0], 160)
-      : "Setting boundaries is healthy and the community overwhelmingly supports OP's choice.";
+  const prosArgs = prosPool.slice(0, 3).map((c, i) => extractArgument(c, 140));
+  const defArgs = nta.slice(0, 3).map((c, i) => extractArgument(c, 140));
+  while (prosArgs.length < 3) prosArgs.push("The response was disproportionate and showed poor judgment.");
+  while (defArgs.length < 3) defArgs.push("Setting boundaries is healthy and the community supports OP.");
 
   const convoMsgs: Array<{ side: "pros" | "def"; text: string; tag: string }> = [
-    { side: "pros", text: prosOpening, tag: "OPENING" },
-    { side: "def", text: defOpening, tag: "REBUTTAL" },
-    { side: "pros", text: prosEvidence, tag: "EVIDENCE" },
-    { side: "def", text: defCounter, tag: "COUNTER" },
+    { side: "pros", text: prosArgs[0], tag: "OPENING" },
+    { side: "def", text: defArgs[0], tag: "REBUTTAL" },
+    { side: "pros", text: prosArgs[1], tag: "EVIDENCE" },
+    { side: "def", text: defArgs[1], tag: "COUNTER" },
+    { side: "pros", text: prosArgs[2], tag: "CLOSING" },
+    { side: "def", text: defArgs[2], tag: "CLOSING" },
   ];
 
   const convoGap = Math.round((convoEnd - f) / convoMsgs.length);
@@ -777,21 +757,32 @@ function buildDebateFromAgentTranscript(
 
   const msgs: VideoDebateMessage[] = [];
   let f = debateStartFrame + Math.round(0.5 * fps);
-  const limited = interleaved.slice(0, 4);
-  const convoGap = Math.round((convoEnd - f) / Math.max(limited.length, 1));
-  const tags = ["OPENING", "REBUTTAL", "EVIDENCE", "COUNTER", "CLOSING", "CLOSING"];
 
-  for (let i = 0; i < limited.length; i++) {
-    const t = limited[i];
+  const prosLimited = prosTurns.slice(0, 3);
+  const defLimited = defTurns.slice(0, 3);
+  const limited: AgentTurn[] = [];
+  const maxDisplay = Math.max(prosLimited.length, defLimited.length);
+  for (let i = 0; i < maxDisplay; i++) {
+    if (i < prosLimited.length) limited.push(prosLimited[i]);
+    if (i < defLimited.length) limited.push(defLimited[i]);
+  }
+
+  const convoGap = Math.round((convoEnd - f) / Math.max(limited.length, 1));
+  const prosTags = ["OPENING", "EVIDENCE", "CLOSING"];
+  const defTags = ["REBUTTAL", "COUNTER", "CLOSING"];
+  let pi = 0, di = 0;
+
+  for (const t of limited) {
+    if (f >= convoEnd - fps) break;
     const isPros = t.role === "prosecutor";
-    const displayText = trunc(stripLLMFluff(t.text), 140);
+    const tag = isPros ? (prosTags[pi++] ?? "ARGUMENT") : (defTags[di++] ?? "ARGUMENT");
     msgs.push({
       displayName: isPros ? "Prosecutor" : "Defense",
-      text: displayText,
+      text: trunc(stripLLMFluff(t.text), 140),
       color: isPros ? "#ef4444" : "#22c55e",
       startFrame: f,
       endFrame: convoEnd,
-      tag: tags[i] ?? "ARGUMENT",
+      tag,
     });
     f = Math.min(f + convoGap, convoEnd - Math.round(fps * 0.5));
   }
@@ -830,13 +821,13 @@ function buildDebateFromAgentTranscript(
   });
 
   const narrationParts = [
-    "Now it's time for the trial. Two AI agents will argue this case. Prosecution versus defense. Let the debate begin.",
+    "Now it's time for the trial.",
   ];
-  if (prosTurns[0]) narrationParts.push(`The prosecution opens strong: ${firstSentence(stripLLMFluff(prosTurns[0].text), 80)}.`);
-  if (defTurns[0]) narrationParts.push(`But the defense fires back: ${firstSentence(stripLLMFluff(defTurns[0].text), 80)}.`);
-  if (prosTurns[1]) narrationParts.push(`The prosecution doubles down with new evidence: ${firstSentence(stripLLMFluff(prosTurns[1].text), 80)}.`);
-  if (defTurns[1]) narrationParts.push(`The defense counters with a strong rebuttal: ${firstSentence(stripLLMFluff(defTurns[1].text), 80)}.`);
-  narrationParts.push("Here are the summarized arguments from both sides.");
+
+  const lastProsText = lastPros ? firstSentence(stripLLMFluff(lastPros.text), 100) : "The response was disproportionate";
+  const lastDefText = lastDef ? firstSentence(stripLLMFluff(lastDef.text), 100) : "Setting boundaries is healthy";
+  narrationParts.push(`The prosecution argues: ${lastProsText}.`);
+  narrationParts.push(`The defense counters: ${lastDefText}.`);
 
   return { messages: msgs, narration: narrationParts.join(" ") };
 }
@@ -953,10 +944,10 @@ async function main() {
     findTextTimestamp(tts.alignment, fullNarration, debateNarration) ??
     storyEndSec + 0.3;
 
-  const totalSec = Math.min(90, Math.max(60, tts.durationSec + 2));
+  const totalSec = Math.max(60, tts.durationSec + 4);
 
-  const VERDICT_DURATION = 6;
-  const CTA_DURATION = 3;
+  const VERDICT_DURATION = 8;
+  const CTA_DURATION = 5;
 
   const verdictStartSec = totalSec - VERDICT_DURATION - CTA_DURATION;
   const ctaStartSec = totalSec - CTA_DURATION;
