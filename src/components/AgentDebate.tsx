@@ -37,6 +37,7 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
   const [currentRound, setCurrentRound] = useState(-1);
   const [errorMsg, setErrorMsg] = useState("");
   const [waitingFor, setWaitingFor] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prosUrlRef = useRef<string>("");
   const defUrlRef = useRef<string>("");
@@ -103,6 +104,7 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
     setMessages([]);
     msgsRef.current = [];
     setErrorMsg("");
+    setShowConfetti(false);
     roundRef.current = 0;
 
     try {
@@ -179,7 +181,7 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
           : 75;
         const verdictColor = label === "NTA" ? "#22c55e" : label === "YTA" ? "#ef4444" : "#f59e0b";
 
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           addMsg({
             id: "verdict-final",
             speaker: "verdict",
@@ -187,11 +189,14 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
             text: `${label} \u2014 ${conf}% confidence. Both AI agents have presented their cases. The internet has spoken.`,
             color: verdictColor,
           });
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 2600);
           setStatus("done");
           prosecutor.endSession();
           defense.endSession();
           onDebateComplete?.(msgsRef.current);
         }, 2000);
+        return () => clearTimeout(timer);
       } else {
         setCurrentRound(nextRound);
       }
@@ -201,7 +206,28 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
   const meta = (speaker: string) => SPEAKER_META[speaker as keyof typeof SPEAKER_META] ?? SPEAKER_META.system;
 
   return (
-    <div className="flex flex-col h-full min-h-[500px]">
+    <div className="flex flex-col h-full min-h-[500px] relative">
+      {showConfetti && (
+        <div className="confetti-wrap" aria-hidden>
+          {Array.from({ length: 42 }).map((_, i) => (
+            <span
+              key={i}
+              className="confetti-piece"
+              style={{
+                left: `${(i * 97) % 100}%`,
+                background: i % 4 === 0
+                  ? "#f43f5e"
+                  : i % 4 === 1
+                    ? "#f59e0b"
+                    : i % 4 === 2
+                      ? "#22d3ee"
+                      : "#a78bfa",
+                animationDelay: `${(i % 10) * 0.05}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
       <div className="flex items-center justify-between p-4 border-b border-zinc-800">
         <div className="flex items-center gap-3">
           <span className="text-2xl">{"\u2694\uFE0F"}</span>
@@ -353,7 +379,7 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
         {status === "idle" || status === "error" ? (
           <button
             onClick={startDebate}
-            className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-red-600 via-orange-600 to-green-600 hover:from-red-500 hover:via-orange-500 hover:to-green-500 text-white transition-all shadow-lg shadow-orange-900/30 flex items-center justify-center gap-2"
+            className="w-full click-jiggle py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-red-600 via-orange-600 to-green-600 hover:from-red-500 hover:via-orange-500 hover:to-green-500 text-white transition-all shadow-lg shadow-orange-900/30 flex items-center justify-center gap-2"
           >
             <span className="text-lg">{"\u2694\uFE0F"}</span>
             Start AI Trial

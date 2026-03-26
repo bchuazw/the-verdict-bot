@@ -53,16 +53,33 @@ export function sanitizeRedditUrl(raw: unknown): string {
 }
 
 export async function fetchRedditThread(url: string) {
-  const jsonUrl = url.replace(/\/?(\?.*)?$/, ".json");
-  const res = await fetch(jsonUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      "Accept": "application/json, text/html",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
-  });
-  if (!res.ok) throw new Error(`Reddit ${res.status}`);
-  return res.json();
+  const path = new URL(url).pathname.replace(/\/$/, "");
+  const candidates = [
+    `https://www.reddit.com${path}.json?raw_json=1`,
+    `https://reddit.com${path}.json?raw_json=1`,
+    `https://old.reddit.com${path}.json?raw_json=1`,
+  ];
+
+  let lastStatus: number | null = null;
+  for (const jsonUrl of candidates) {
+    try {
+      const res = await fetch(jsonUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "application/json, text/html",
+          "Accept-Language": "en-US,en;q=0.9",
+          Referer: "https://www.reddit.com/",
+        },
+      });
+      if (res.ok) return res.json();
+      lastStatus = res.status;
+    } catch {
+      // Try the next endpoint variant.
+    }
+  }
+
+  throw new Error(`Reddit ${lastStatus ?? 403}`);
 }
 
 function extractVerdictTag(body: string): string | null {
@@ -234,6 +251,81 @@ export function buildCaseBundle(raw: any, url: string) {
       confidence,
       oneLiner: generateOneLiner(post.title, label),
       rationale: `Based on ${jury.analyzedCount} Reddit comments, the majority verdict is ${label}.`,
+    },
+  };
+}
+
+export function buildFallbackCaseBundle(url: string) {
+  const post = {
+    title:
+      "AITA for uninviting my sister to my wedding after she hijacked the engagement party?",
+    body:
+      "My sister grabbed the mic at my engagement party and announced her pregnancy. " +
+      "The night became about her and she called me selfish when I confronted her. " +
+      "I uninvited her from the wedding and now my parents are threatening to boycott.",
+    subreddit: "AmItheAsshole",
+    author: "throwaway_bride2026",
+    permalink: "/r/AmItheAsshole/comments/demo_case_001/",
+    url,
+  };
+
+  const comments: RedditComment[] = [
+    {
+      id: "demo-1",
+      author: "top_commenter_1",
+      body: "NTA. Announcing a pregnancy at someone else's engagement party is wild.",
+      score: 8421,
+      depth: 0,
+      permalink: "/r/AmItheAsshole/comments/demo_case_001/c1/",
+      verdictTag: "NTA",
+    },
+    {
+      id: "demo-2",
+      author: "family_first_77",
+      body: "ESH. Your sister was wrong, but uninviting her escalated things fast.",
+      score: 3990,
+      depth: 0,
+      permalink: "/r/AmItheAsshole/comments/demo_case_001/c2/",
+      verdictTag: "ESH",
+    },
+    {
+      id: "demo-3",
+      author: "boundariesmatter",
+      body: "NTA. Boundaries are healthy. She wanted your spotlight.",
+      score: 5034,
+      depth: 0,
+      permalink: "/r/AmItheAsshole/comments/demo_case_001/c3/",
+      verdictTag: "NTA",
+    },
+    {
+      id: "demo-4",
+      author: "softtake123",
+      body: "YTA for going straight to uninvite without a cool-down conversation.",
+      score: 1880,
+      depth: 0,
+      permalink: "/r/AmItheAsshole/comments/demo_case_001/c4/",
+      verdictTag: "YTA",
+    },
+  ];
+
+  const jury = computeJury(comments);
+  const debate = generateDebate(post, comments, jury);
+  const label = jury.majorityVerdict ?? "NTA";
+  const confidence =
+    jury.analyzedCount > 0
+      ? Math.round(((jury.verdictCounts[label] ?? 0) / jury.analyzedCount) * 100)
+      : 75;
+
+  return {
+    post,
+    comments,
+    jury,
+    debate,
+    verdict: {
+      label,
+      confidence,
+      oneLiner: generateOneLiner(post.title, label),
+      rationale: `Fallback demo case used because Reddit blocked the request. Majority verdict is ${label}.`,
     },
   };
 }

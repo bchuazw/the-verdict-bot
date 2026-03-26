@@ -3,6 +3,7 @@ import {
   sanitizeRedditUrl,
   fetchRedditThread,
   buildCaseBundle,
+  buildFallbackCaseBundle,
   searchFirecrawlReceipts,
 } from "../_lib/reddit.js";
 
@@ -21,8 +22,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: e instanceof Error ? e.message : "Invalid URL" });
     }
 
-    const raw = await fetchRedditThread(url);
-    const bundle = buildCaseBundle(raw, url);
+    let bundle: ReturnType<typeof buildCaseBundle>;
+    try {
+      const raw = await fetchRedditThread(url);
+      bundle = buildCaseBundle(raw, url);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "";
+      if (!message.includes("Reddit 403")) throw e;
+      bundle = buildFallbackCaseBundle(url);
+    }
 
     const receipts = await searchFirecrawlReceipts(
       `${bundle.post.title} AITA reddit etiquette`,

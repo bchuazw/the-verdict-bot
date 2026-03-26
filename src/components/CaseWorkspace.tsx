@@ -85,8 +85,19 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
   const [tab, setTab] = useState<Tab>("ai-trial");
   const [rendering, setRendering] = useState(false);
   const [renderDone, setRenderDone] = useState(false);
-
   const { post, comments, jury, debate, receipts, verdict } = bundle;
+  const tabItems = [
+    ["ai-trial", "⚔️ AI Trial"],
+    ["voice-trial", "🎙️ Voice Trial"],
+    ["discussion", "📝 Script"],
+    ["post", "📝 Post"],
+    ["comments", `💬 ${comments.length} Comments`],
+    ["receipts", `🔥 ${receipts.length} Receipts`],
+  ] as const;
+  const sidebarCardVariants = {
+    hidden: { opacity: 0, y: 18 },
+    show: { opacity: 1, y: 0 },
+  };
 
   const handleExport = async () => {
     setRendering(true);
@@ -117,7 +128,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-black bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent tracking-tight">
+          <h1 className="text-3xl font-black hero-title angry-vibrate tracking-tight">
             AITAH?!
           </h1>
           <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500">
@@ -144,33 +155,31 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
 
       {/* Tab bar */}
       <div className="flex gap-1 mb-5 overflow-x-auto">
-        {(
-          [
-            ["ai-trial", "\u2694\uFE0F AI Trial"],
-            ["voice-trial", "\uD83C\uDF99\uFE0F Voice Trial"],
-            ["discussion", "\uD83D\uDCDD Script"],
-            ["post", "\uD83D\uDCDD Post"],
-            ["comments", `\uD83D\uDCAC ${comments.length} Comments`],
-            ["receipts", `\uD83D\uDD25 ${receipts.length} Receipts`],
-          ] as const
-        ).map(([key, label]) => (
+        {tabItems.map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key as Tab)}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
+            className={`tab-pill click-jiggle px-4 py-2.5 text-sm font-semibold rounded-lg transition-all whitespace-nowrap relative ${
               tab === key
-                ? "bg-orange-600/20 text-orange-400 border border-orange-500/30"
+                ? "bg-gradient-to-r from-fuchsia-600/20 via-orange-500/20 to-cyan-500/20 text-orange-300 border border-orange-400/35 shadow-[0_0_20px_hsl(25_95%_58%/0.18)]"
                 : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 border border-transparent"
             }`}
           >
             {label}
+            {tab === key && (
+              <motion.span
+                layoutId="active-tab-underline"
+                className="tab-underline"
+                transition={{ type: "spring", stiffness: 520, damping: 36 }}
+              />
+            )}
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Main content */}
-        <div className="lg:col-span-2 bg-zinc-900/60 rounded-xl border border-zinc-800/80 overflow-hidden backdrop-blur-sm">
+        <div className="lg:col-span-2 pop-card rounded-xl overflow-hidden backdrop-blur-sm">
           {tab === "ai-trial" && (
             <AgentDebate caseBundle={{ post, jury, comments }} />
           )}
@@ -205,7 +214,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
               {comments.slice(0, 12).map((c) => (
                 <div
                   key={c.id}
-                  className="bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/40 hover:border-zinc-600/50 transition-colors"
+                  className="bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/40 hover:border-fuchsia-400/35 transition-colors"
                 >
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="text-xs font-semibold text-zinc-400">
@@ -249,7 +258,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
                   href={r.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/40 hover:border-orange-500/40 transition-all group"
+                  className="block bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/40 hover:border-cyan-400/40 transition-all group"
                 >
                   <p className="text-sm font-medium text-zinc-200 group-hover:text-orange-300 mb-1 transition-colors">
                     {r.title || "Source"}
@@ -265,9 +274,10 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
         <div className="flex flex-col gap-4">
           {/* Verdict card — the star */}
           <motion.div
-            initial={{ scale: 0.95 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            initial="hidden"
+            animate="show"
+            variants={sidebarCardVariants}
+            transition={{ duration: 0.4, delay: 0.2 }}
             className={`rounded-xl border p-5 bg-gradient-to-br shadow-lg ${
               VERDICT_BG[verdict.label] ?? VERDICT_BG.NTA
             } ${VERDICT_GLOW[verdict.label] ?? ""}`}
@@ -306,7 +316,13 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
           </motion.div>
 
           {/* Jury stats */}
-          <div className="bg-zinc-900/60 rounded-xl border border-zinc-800/80 p-4 backdrop-blur-sm">
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={sidebarCardVariants}
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="pop-card rounded-xl p-4 backdrop-blur-sm"
+          >
             <h3 className="text-xs font-black text-zinc-400 tracking-widest mb-3">
               REDDIT JURY
             </h3>
@@ -338,10 +354,16 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
                 );
               })}
             </div>
-          </div>
+          </motion.div>
 
           {/* Export */}
-          <div className="bg-zinc-900/60 rounded-xl border border-zinc-800/80 p-4 backdrop-blur-sm">
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={sidebarCardVariants}
+            transition={{ duration: 0.4, delay: 0.4 }}
+            className="pop-card rounded-xl p-4 backdrop-blur-sm"
+          >
             <h3 className="text-xs font-black text-zinc-400 tracking-widest mb-3">
               EXPORT REEL
             </h3>
@@ -353,7 +375,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
               <button
                 onClick={handleExport}
                 disabled={rendering}
-                className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
+                className={`click-jiggle w-full py-3 rounded-xl font-bold text-sm transition-all ${
                   rendering
                     ? "bg-zinc-700 text-zinc-400 cursor-wait"
                     : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white shadow-lg shadow-orange-900/20"
@@ -386,12 +408,12 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
             ) : (
               <button
                 onClick={handleDownload}
-                className="w-full py-3 rounded-xl font-bold text-sm bg-green-600 hover:bg-green-500 text-white transition-all"
+                className="click-jiggle w-full py-3 rounded-xl font-bold text-sm bg-green-600 hover:bg-green-500 text-white transition-all"
               >
                 {"\u2B07"} Download Reel (.mp4)
               </button>
             )}
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>

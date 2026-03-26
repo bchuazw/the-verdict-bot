@@ -74,15 +74,23 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white overflow-hidden">
-      {/* Animated bg */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-orange-600/5 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[600px] h-[600px] rounded-full bg-red-600/5 blur-[100px]" />
-      </div>
+    <div className="min-h-screen bg-[hsl(230_30%_5%)] text-foreground overflow-hidden font-body antialiased">
+      <div className="party-bg" aria-hidden />
+      <div className="ambient-bg" aria-hidden />
+      <div
+        className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(43_80%_55%/0.12),transparent_55%)]"
+        aria-hidden
+      />
+      <div
+        className="fixed inset-0 pointer-events-none shadow-[inset_0_0_120px_hsl(230_30%_3%/0.85)]"
+        aria-hidden
+      />
+      <span className="angry-float left-[8%] top-[18%]" aria-hidden>😡</span>
+      <span className="angry-float right-[12%] top-[26%]" style={{ animationDelay: "0.8s" }} aria-hidden>🤬</span>
+      <span className="angry-float left-[20%] bottom-[18%]" style={{ animationDelay: "1.4s" }} aria-hidden>😤</span>
+      <span className="angry-float right-[20%] bottom-[22%]" style={{ animationDelay: "2.1s" }} aria-hidden>😠</span>
 
-      <div className="relative z-10 px-4 py-8">
+      <div className="relative z-10 px-4 py-8 sm:py-12">
         <AnimatePresence mode="wait">
           {view === "input" && (
             <motion.div
@@ -93,33 +101,39 @@ const Index = () => {
               transition={{ duration: 0.4 }}
               className="flex flex-col items-center justify-center min-h-[85vh] max-w-lg mx-auto"
             >
-              {/* Logo */}
+              <p className="section-label mb-4 text-center tracking-[0.25em]">
+                The court of public opinion
+              </p>
               <motion.div
                 animate={{ scale: [1, 1.02, 1] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                 className="mb-2"
               >
-                <h1 className="text-7xl font-black tracking-tight">
-                  <span className="bg-gradient-to-r from-orange-500 via-red-500 to-orange-400 bg-clip-text text-transparent">
-                    AITAH?!
-                  </span>
+                <h1 className="font-display text-6xl sm:text-7xl font-black tracking-tight drop-shadow-[0_0_40px_hsl(43_80%_55%/0.15)]">
+                  <span className="hero-title angry-vibrate">AITAH?!</span>
                 </h1>
               </motion.div>
-              <p className="text-zinc-400 text-center mb-2 text-base">
+              <p className="text-foreground/90 text-center mb-2 text-base max-w-md leading-relaxed">
                 Two AI agents. One Reddit post. One verdict.
               </p>
-              <p className="text-zinc-600 text-center mb-8 text-sm">
-                Powered by Firecrawl + ElevenLabs
+              <p className="text-muted-foreground text-center mb-8 text-sm flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden>🔥</span> Firecrawl
+                </span>
+                <span className="text-border">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden>🎙️</span> ElevenLabs
+                </span>
               </p>
 
               {/* URL input */}
-              <div className="w-full relative mb-3">
+              <div className="w-full relative mb-3 neon-ring rounded-2xl">
                 <input
                   type="text"
                   value={urlInput}
                   onChange={(e) => { setUrlInput(e.target.value); setError(null); }}
                   placeholder="Paste any Reddit AITA post URL..."
-                  className="w-full bg-zinc-900/80 border-2 border-zinc-700/60 rounded-xl px-5 py-4 text-base text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 focus:bg-zinc-900 transition-all"
+                  className="w-full rounded-2xl border-2 border-border bg-gradient-to-b from-secondary to-card px-5 py-4 pr-[7.5rem] text-base text-foreground placeholder:text-muted-foreground shadow-[inset_0_2px_8px_hsl(230_30%_3%/0.35)] transition-all focus:border-gold-bright/70 focus:outline-none focus:ring-2 focus:ring-gold/20"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && urlInput.trim()) ingest(urlInput.trim());
                   }}
@@ -127,7 +141,7 @@ const Index = () => {
                 <button
                   onClick={() => urlInput.trim() && ingest(urlInput.trim())}
                   disabled={!urlInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 disabled:from-zinc-700 disabled:to-zinc-700 disabled:text-zinc-500 rounded-lg font-bold text-sm transition-all shadow-lg shadow-orange-900/20"
+                  className="gavel-button absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 text-sm disabled:pointer-events-none disabled:opacity-45"
                 >
                   Judge it
                 </button>
@@ -143,10 +157,10 @@ const Index = () => {
                 </motion.div>
               )}
 
-              <div className="flex items-center gap-3 w-full my-5">
-                <div className="flex-1 h-px bg-zinc-800" />
-                <span className="text-xs text-zinc-600 font-medium">or try these bangers</span>
-                <div className="flex-1 h-px bg-zinc-800" />
+              <div className="ornament w-full max-w-md my-6 text-muted-foreground">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold-dim">
+                  Or try these bangers
+                </span>
               </div>
 
               {/* Sample cards */}
@@ -154,21 +168,24 @@ const Index = () => {
                 {SAMPLES.map((s, i) => (
                   <motion.button
                     key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.08 * i }}
                     whileHover={{ scale: 1.01, y: -2 }}
                     whileTap={{ scale: 0.99 }}
                     onClick={() => ingest(s.url)}
-                    className="w-full py-4 px-5 rounded-xl border border-zinc-800 hover:border-orange-500/50 bg-zinc-900/50 hover:bg-zinc-900 text-left transition-all group relative overflow-hidden"
+                    className="verdict-card pop-card click-jiggle w-full py-4 px-5 text-left transition-all group relative overflow-hidden border-border/80 hover:border-gold-dim/50 hover:shadow-[0_12px_40px_hsl(230_30%_3%/0.45)]"
                   >
                     <div className="absolute top-3 right-3">
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-600/20 text-orange-400 border border-orange-600/30">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-burgundy/25 text-gold-bright border border-gold-dim/40 glow-pulse">
                         {s.heat}
                       </span>
                     </div>
                     <span className="text-2xl mb-2 block">{s.emoji}</span>
-                    <span className="text-zinc-200 group-hover:text-white text-sm font-medium leading-snug block">
+                    <span className="text-card-foreground/95 group-hover:text-foreground text-sm font-medium leading-snug block">
                       {s.label}
                     </span>
-                    <span className="text-xs text-zinc-600 mt-1 block">
+                    <span className="text-xs text-muted-foreground mt-1 block">
                       Click to put on trial
                     </span>
                   </motion.button>
