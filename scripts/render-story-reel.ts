@@ -1048,18 +1048,18 @@ async function main() {
 
     const narrationSrc = path.join(GEN, "narration.mp3");
     if (fs.existsSync(narrationSrc)) {
-      const narrationDst = path.join(prebundlePath, "generated", "narration.mp3");
+      const narrationDst = path.join(prebundlePath, "public", "generated", "narration.mp3");
       fs.mkdirSync(path.dirname(narrationDst), { recursive: true });
       fs.copyFileSync(narrationSrc, narrationDst);
-      console.log("  Copied narration.mp3 into bundle");
+      console.log("  Copied narration.mp3 into bundle/public/generated/");
     }
 
     const videoBgSrc = path.join(PUBLIC, "video", "parkour-bg.mp4");
-    const videoBgDst = path.join(prebundlePath, "video", "parkour-bg.mp4");
+    const videoBgDst = path.join(prebundlePath, "public", "video", "parkour-bg.mp4");
     if (fs.existsSync(videoBgSrc) && !fs.existsSync(videoBgDst)) {
       fs.mkdirSync(path.dirname(videoBgDst), { recursive: true });
       fs.copyFileSync(videoBgSrc, videoBgDst);
-      console.log("  Copied parkour-bg.mp4 into bundle");
+      console.log("  Copied parkour-bg.mp4 into bundle/public/video/");
     }
   } else {
     console.log("  No pre-built bundle found, bundling now...");
