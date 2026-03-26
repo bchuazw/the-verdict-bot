@@ -59,41 +59,68 @@ export async function fetchRedditThread(url: string) {
   const path = new URL(url).pathname.replace(/\/$/, "");
   const jsonUrl = `https://www.reddit.com${path}.json?raw_json=1`;
 
-  const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      url: jsonUrl,
-      formats: ["rawHtml"],
-      waitFor: 2000,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Firecrawl scrape failed (${res.status}): ${body.slice(0, 200)}`);
-  }
-
-  const json = await res.json() as any;
-  const raw = json?.data?.rawHtml ?? json?.data?.html ?? "";
-  if (!raw) throw new Error("Firecrawl returned empty content");
-
-  const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-  const text = preMatch ? preMatch[1] : raw;
-  const cleaned = text
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"');
-
   try {
-    return JSON.parse(cleaned);
+    const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        url: jsonUrl,
+        formats: ["rawHtml"],
+        waitFor: 2000,
+      }),
+    });
+
+    if (res.ok) {
+      const json = await res.json() as any;
+      const raw = json?.data?.rawHtml ?? json?.data?.html ?? "";
+      if (raw) {
+        const preMatch = raw.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+        const text = preMatch ? preMatch[1] : raw;
+        const cleaned = text
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&amp;/g, "&")
+          .replace(/&quot;/g, '"');
+        try {
+          return JSON.parse(cleaned);
+        } catch {
+          // Fall through to direct Reddit fetch below.
+        }
+      }
+    }
   } catch {
-    throw new Error("Failed to parse Reddit JSON from Firecrawl response");
+    // Fall through to direct Reddit fetch below.
   }
+
+  // Fallback for providers that block scraping reddit URLs from serverless regions.
+  const candidates = [
+    `https://www.reddit.com${path}.json?raw_json=1`,
+    `https://reddit.com${path}.json?raw_json=1`,
+    `https://old.reddit.com${path}.json?raw_json=1`,
+  ];
+  let lastStatus: number | null = null;
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(candidate, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "application/json, text/html",
+          "Accept-Language": "en-US,en;q=0.9",
+          Referer: "https://www.reddit.com/",
+        },
+      });
+      if (res.ok) return res.json();
+      lastStatus = res.status;
+    } catch {
+      // try next candidate
+    }
+  }
+
+  throw new Error(`Reddit ${lastStatus ?? 403}`);
 }
 
 function extractVerdictTag(body: string): string | null {
