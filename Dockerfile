@@ -27,10 +27,10 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 COPY . .
 
 EXPOSE 3001
 
-CMD ["npx", "tsx", "server/index.ts"]
+CMD ["node", "node_modules/.bin/tsx", "server/index.ts"]

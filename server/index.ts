@@ -15,6 +15,8 @@ const ROOT = path.resolve(__dirname, "..");
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "*";
 app.use(cors({
   origin: allowedOrigin === "*" ? true : [allowedOrigin, "http://localhost:8080"],
@@ -26,10 +28,11 @@ app.use(express.json({ limit: "2mb" }));
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
-  max: 10,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests — please wait a minute." },
+  validate: { xForwardedForHeader: false },
 });
 app.use("/api/", apiLimiter);
 
@@ -828,6 +831,7 @@ app.post("/api/reels/render", async (req, res) => {
       cwd: ROOT,
       shell: true,
       stdio: "pipe",
+      env: { ...process.env },
     });
 
     let output = "";
@@ -905,6 +909,14 @@ app.get("/api/reels/download", (_req, res) => {
 
 /* ── Static serve for generated files ── */
 app.use("/generated", express.static(path.resolve(ROOT, "public", "generated")));
+
+/* ── Global error handler ── */
+app.use((err: unknown, _req: import("express").Request, res: import("express").Response, _next: import("express").NextFunction) => {
+  console.error("Unhandled Express error:", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 /* ═══════════════════════════════════════════════════
    Start
