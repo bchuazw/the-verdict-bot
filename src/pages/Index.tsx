@@ -46,6 +46,20 @@ const Index = () => {
   const [bundle, setBundle] = useState<CaseBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
+  const [gavelHit, setGavelHit] = useState(false);
+
+  const triggerGavel = (url: string) => {
+    const validationError = validateRedditUrl(url);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setGavelHit(true);
+    setTimeout(() => {
+      setGavelHit(false);
+      ingest(url);
+    }, 700);
+  };
 
   const ingest = async (url: string) => {
     const validationError = validateRedditUrl(url);
@@ -146,16 +160,48 @@ const Index = () => {
                   placeholder="Paste any Reddit AITA post URL..."
                   className="w-full rounded-2xl border-2 border-border bg-gradient-to-b from-secondary to-card px-5 py-4 pr-[7.5rem] text-base text-foreground placeholder:text-muted-foreground shadow-[inset_0_2px_8px_hsl(230_30%_3%/0.35)] transition-all focus:border-gold-bright/70 focus:outline-none focus:ring-2 focus:ring-gold/20"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && urlInput.trim()) ingest(urlInput.trim());
+                    if (e.key === "Enter" && urlInput.trim()) triggerGavel(urlInput.trim());
                   }}
                 />
-                <button
-                  onClick={() => urlInput.trim() && ingest(urlInput.trim())}
-                  disabled={!urlInput.trim()}
-                  className="gavel-button absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 text-sm disabled:pointer-events-none disabled:opacity-45"
-                >
-                  Judge it
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <motion.span
+                    className="absolute -top-8 left-1/2 -translate-x-1/2 text-2xl pointer-events-none select-none"
+                    style={{ originX: 0.3, originY: 1 }}
+                    initial={{ opacity: 0, rotate: -60 }}
+                    animate={
+                      gavelHit
+                        ? {
+                            opacity: [0, 1, 1, 1, 0.8, 0],
+                            rotate: [-60, -60, 15, 15, -20, -60],
+                            y: [0, 0, 6, 6, -2, -8],
+                          }
+                        : { opacity: 0, rotate: -60 }
+                    }
+                    transition={{ duration: 0.65, ease: "easeInOut", times: [0, 0.15, 0.4, 0.5, 0.7, 1] }}
+                  >
+                    {"\uD83D\uDD28"}
+                  </motion.span>
+                  <motion.div
+                    animate={
+                      gavelHit
+                        ? { scale: [1, 1, 0.92, 1.06, 1], y: [0, 0, 2, -1, 0] }
+                        : {}
+                    }
+                    transition={
+                      gavelHit
+                        ? { duration: 0.65, ease: "easeInOut", times: [0, 0.35, 0.45, 0.65, 1] }
+                        : {}
+                    }
+                  >
+                    <button
+                      onClick={() => urlInput.trim() && triggerGavel(urlInput.trim())}
+                      disabled={!urlInput.trim() || gavelHit}
+                      className="gavel-button px-5 py-2.5 text-sm disabled:pointer-events-none disabled:opacity-45"
+                    >
+                      {gavelHit ? "\u2696\uFE0F" : "Judge it"}
+                    </button>
+                  </motion.div>
+                </div>
               </div>
 
               {error && (
