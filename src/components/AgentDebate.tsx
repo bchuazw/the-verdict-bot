@@ -131,14 +131,28 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
       prosUrlRef.current = prosecutorSignedUrl;
       defUrlRef.current = defenseSignedUrl;
 
-      await Promise.all([
-        prosecutor.startSession({ signedUrl: prosecutorSignedUrl, overrides: { conversation: { textOnly: true } } }),
-        defense.startSession({ signedUrl: defenseSignedUrl, overrides: { conversation: { textOnly: true } } }),
-      ]);
+      try {
+        console.log("Connecting prosecutor...", prosecutorSignedUrl.slice(0, 80));
+        await prosecutor.startSession({ signedUrl: prosecutorSignedUrl });
+        console.log("Prosecutor connected!");
+      } catch (e) {
+        console.error("Prosecutor connection failed:", e);
+        throw e;
+      }
+
+      try {
+        console.log("Connecting defense...", defenseSignedUrl.slice(0, 80));
+        await defense.startSession({ signedUrl: defenseSignedUrl });
+        console.log("Defense connected!");
+      } catch (e) {
+        console.error("Defense connection failed:", e);
+        throw e;
+      }
 
       setStatus("running");
       setCurrentRound(0);
     } catch (err: unknown) {
+      console.error("Debate start failed:", err);
       setErrorMsg(err instanceof Error ? err.message : "Failed to start debate");
       setStatus("error");
     }

@@ -174,6 +174,15 @@ function trunc(s: string, max = 180) {
   return (last > max * 0.5 ? cut.slice(0, last) : cut) + "…";
 }
 
+function extractArg(body: string, maxLen = 100): string {
+  let text = body.trim();
+  text = text.replace(/^\*{0,2}\s*(NTA|YTA|ESH|NAH|INFO)\b[.!:,\-—\s]*/i, "");
+  text = text.replace(/^(not the a\w*|the a\w*|no a\w* here)\b[.!:,\-—\s]*/i, "");
+  const sentences = text.split(/(?<=[.!?\n])/).map((s) => s.trim()).filter((s) => s.length > 15);
+  const core = sentences[0] ?? text;
+  return trunc(core.charAt(0).toUpperCase() + core.slice(1), maxLen);
+}
+
 function generateDebate(
   post: { title: string; body: string },
   comments: RedditComment[],
@@ -522,23 +531,83 @@ app.post("/api/agent/start-debate", async (req, res) => {
     const defPrompt = `You are The Defense Attorney in an AITA Reddit courtroom trial. Argue OP is NOT the asshole (NTA). Keep responses to 2-4 punchy sentences. Quote Reddit comments. Use search_evidence for external evidence. Be passionate and persuasive.\n\nCASE:\n${ctx}`;
 
     async function patchAndSign(agentId: string, prompt: string, firstMsg: string) {
-      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      const patchRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
         method: "PATCH",
         headers: { "xi-api-key": apiKey!, "Content-Type": "application/json" },
         body: JSON.stringify({ conversation_config: { agent: { prompt: { prompt }, first_message: firstMsg } } }),
       });
+      if (!patchRes.ok) {
+        const errBody = await patchRes.text().catch(() => "");
+        console.error(`  PATCH failed for ${agentId}: ${patchRes.status} ${errBody}`);
+        throw new Error(`Agent config failed (${patchRes.status}): ${errBody.slice(0, 200)}`);
+      }
       const signRes = await fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`, { headers: { "xi-api-key": apiKey! } });
-      if (!signRes.ok) throw new Error(`Signed URL failed for ${agentId}`);
+      if (!signRes.ok) {
+        const errBody = await signRes.text().catch(() => "");
+        throw new Error(`Signed URL failed (${signRes.status}): ${errBody.slice(0, 200)}`);
+      }
       const { signed_url } = (await signRes.json()) as { signed_url: string };
       return signed_url;
     }
 
+    async function checkAgent(agentId: string, label: string) {
+      const r = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        headers: { "xi-api-key": apiKey! },
+      });
+      if (!r.ok) {
+        console.error(`  ${label} agent GET failed: ${r.status}`);
+        return;
+      }
+      const a = await r.json() as any;
+      const llm = a.conversation_config?.agent?.prompt?.llm;
+      const tts = a.conversation_config?.tts;
+      const firstMsg = a.conversation_config?.agent?.first_message;
+      const overrides = a.platform_settings?.overrides;
+      const auth = a.platform_settings?.auth;
+      console.log(`  ${label}: llm=${llm ?? "MISSING"}, tts_voice=${tts?.voice_id ?? "MISSING"}, first_msg=${firstMsg ? "yes" : "MISSING"}`);
+      console.log(`  ${label} overrides: ${JSON.stringify(overrides ?? "none")}`);
+      console.log(`  ${label} auth: ${JSON.stringify(auth ?? "none")}`);
+    }
+
+    await Promise.all([checkAgent(prosId, "Prosecutor"), checkAgent(defId, "Defense")]);
+
+    const prosFirstArg = yta[0]
+      ? extractArg(yta[0].body, 120)
+      : "They escalated when they could have communicated.";
+    const defFirstArg = nta[0]
+      ? extractArg(nta[0].body, 120)
+      : "They set a reasonable boundary.";
+
     const [prosUrl, defUrl] = await Promise.all([
-      patchAndSign(prosId, prosPrompt, `The prosecution is ready. Case: "${bundle.post.title}". Jury: ${juryLine}.`),
-      patchAndSign(defId, defPrompt, `The defense is ready. Case: "${bundle.post.title}". Jury: ${juryLine}.`),
+      patchAndSign(prosId, prosPrompt, prosFirstArg),
+      patchAndSign(defId, defPrompt, defFirstArg),
     ]);
 
     console.log("  Both agents configured + signed URLs generated");
+    console.log("  Testing prosecutor WebSocket from server...");
+    try {
+      const { default: WS } = await import("ws");
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        const ws = new WS(prosUrl);
+        ws.on("open", () => { console.log("  WS open!"); });
+        ws.on("message", (data: any) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            console.log("  WS msg:", msg.type, msg.error ? JSON.stringify(msg) : "");
+            if (msg.type === "conversation_initiation_metadata" || msg.error) {
+              ws.close();
+              finish();
+            }
+          } catch { console.log("  WS raw:", data.toString().slice(0, 300)); }
+        });
+        ws.on("error", (err: any) => { console.error("  WS error:", err.message); finish(); });
+        ws.on("close", (code: number, reason: any) => { console.error(`  WS closed: ${code} ${reason?.toString()}`); finish(); });
+        setTimeout(() => { ws.close(); finish(); }, 8000);
+      });
+    } catch (e: any) { console.error("  WS test error:", e.message); }
+
     res.json({ prosecutorSignedUrl: prosUrl, defenseSignedUrl: defUrl, caseTitle: bundle.post.title });
   } catch (err: unknown) {
     console.error("Debate error:", err);
