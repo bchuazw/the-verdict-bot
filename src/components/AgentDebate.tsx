@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiUrl } from "@/lib/api";
@@ -16,14 +16,16 @@ interface Props {
   onDebateComplete?: (messages: DebateEntry[]) => void;
 }
 
-const PROMPTS = [
-  { target: "prosecutor", text: "Present your opening argument. Why is the OP the asshole?" },
-  { target: "defense", text: "The prosecution just argued. Present your rebuttal — why is OP NOT the asshole?" },
-  { target: "prosecutor", text: "The defense has responded. Hit back with your strongest evidence. Search the web if needed." },
-  { target: "defense", text: "Counter the prosecution's latest point. Use evidence from the web if helpful." },
-  { target: "prosecutor", text: "Give your closing statement. Make it memorable." },
-  { target: "defense", text: "Give your closing statement. Make it count." },
-];
+function buildPrompts(title: string) {
+  return [
+    { target: "prosecutor", text: `Present your opening argument about "${title}". Why is OP the asshole? Reference specific details from the post.` },
+    { target: "defense", text: `The prosecution just argued about "${title}". Present your rebuttal — why is OP NOT the asshole? Use specific details from the post.` },
+    { target: "prosecutor", text: `The defense has responded about "${title}". Hit back with your strongest evidence from the post and comments.` },
+    { target: "defense", text: `Counter the prosecution's latest point about "${title}". Reference specific details from the post.` },
+    { target: "prosecutor", text: `Give your closing statement about "${title}". Reference the key facts. Make it memorable.` },
+    { target: "defense", text: `Give your closing statement about "${title}". Reference the key facts. Make it count.` },
+  ];
+}
 
 const SPEAKER_META = {
   system: { emoji: "\u2696\uFE0F", bg: "bg-zinc-800/80", border: "border-orange-500/40", label: "COURT" },
@@ -46,6 +48,8 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
   const msgsRef = useRef<DebateEntry[]>([]);
   const prosConnectedRef = useRef(false);
   const defConnectedRef = useRef(false);
+
+  const PROMPTS = useMemo(() => buildPrompts(caseBundle.post?.title ?? ""), [caseBundle.post?.title]);
 
   const addMsg = useCallback((entry: DebateEntry) => {
     msgsRef.current = [...msgsRef.current, entry];

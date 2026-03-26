@@ -540,8 +540,28 @@ app.post("/api/agent/start-debate", async (req, res) => {
     ctx += "\nNTA COMMENTS:\n";
     for (const c of nta.slice(0, 3)) ctx += `- u/${c.author} (${c.score} pts): "${trunc(c.body)}"\n`;
 
-    const prosPrompt = `You are The Prosecutor in an AITA Reddit courtroom trial. Argue OP IS the asshole (YTA). Keep responses to 2-4 punchy sentences. Quote Reddit comments. Use search_evidence for external evidence. Be dramatic and quotable.\n\nCASE:\n${ctx}`;
-    const defPrompt = `You are The Defense Attorney in an AITA Reddit courtroom trial. Argue OP is NOT the asshole (NTA). Keep responses to 2-4 punchy sentences. Quote Reddit comments. Use search_evidence for external evidence. Be passionate and persuasive.\n\nCASE:\n${ctx}`;
+    const prosPrompt = `You are The Prosecutor in an AITA Reddit courtroom trial about THIS SPECIFIC case: "${bundle.post.title}".
+
+CRITICAL RULES:
+- You MUST ONLY discuss THIS Reddit post. Every argument must reference specific details from the post below.
+- Argue that OP (u/${bundle.post.author}) IS the asshole (YTA).
+- Quote specific actions, words, or decisions OP made in the post.
+- Reference real Reddit comments provided below as evidence.
+- Keep responses to 2-4 punchy sentences. Be dramatic and quotable.
+- NEVER make generic arguments. Always tie back to the specific situation described.
+
+CASE:\n${ctx}`;
+    const defPrompt = `You are The Defense Attorney in an AITA Reddit courtroom trial about THIS SPECIFIC case: "${bundle.post.title}".
+
+CRITICAL RULES:
+- You MUST ONLY discuss THIS Reddit post. Every argument must reference specific details from the post below.
+- Argue that OP (u/${bundle.post.author}) is NOT the asshole (NTA).
+- Quote specific actions, words, or decisions OP made in the post.
+- Reference real Reddit comments provided below as evidence.
+- Keep responses to 2-4 punchy sentences. Be passionate and persuasive.
+- NEVER make generic arguments. Always tie back to the specific situation described.
+
+CASE:\n${ctx}`;
 
     async function patchAndSign(agentId: string, prompt: string, firstMsg: string) {
       const patchRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
@@ -585,11 +605,11 @@ app.post("/api/agent/start-debate", async (req, res) => {
     await Promise.all([checkAgent(prosId, "Prosecutor"), checkAgent(defId, "Defense")]);
 
     const prosFirstArg = yta[0]
-      ? extractArg(yta[0].body, 120)
-      : "They escalated when they could have communicated.";
+      ? `In the case of "${bundle.post.title}" — ${extractArg(yta[0].body, 100)}`
+      : `In the case of "${bundle.post.title}" — OP escalated when they could have communicated.`;
     const defFirstArg = nta[0]
-      ? extractArg(nta[0].body, 120)
-      : "They set a reasonable boundary.";
+      ? `Regarding "${bundle.post.title}" — ${extractArg(nta[0].body, 100)}`
+      : `Regarding "${bundle.post.title}" — OP set a reasonable boundary.`;
 
     const [prosUrl, defUrl] = await Promise.all([
       patchAndSign(prosId, prosPrompt, prosFirstArg),

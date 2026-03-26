@@ -86,6 +86,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
   const [tab, setTab] = useState<Tab>("ai-trial");
   const [rendering, setRendering] = useState(false);
   const [renderDone, setRenderDone] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
   const { post, comments, jury, debate, receipts, verdict } = bundle;
   const tabItems = [
     ["ai-trial", "⚔️ AI Trial"],
@@ -100,25 +101,42 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
     show: { opacity: 1, y: 0 },
   };
 
+  const videoSrc = apiUrl("/api/reels/download");
+
   const handleExport = async () => {
     setRendering(true);
     setRenderDone(false);
+    setRenderError(null);
     try {
       const res = await fetch(apiUrl("/api/reels/render"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: post.url }),
       });
-      if (res.ok) setRenderDone(true);
+      if (res.ok) {
+        setRenderDone(true);
+      } else {
+        const data = await res.json().catch(() => null);
+        setRenderError(data?.error ?? `Render failed (${res.status})`);
+      }
     } catch {
-      /* ignore */
+      setRenderError("Network error — is the backend running?");
     } finally {
       setRendering(false);
     }
   };
 
   const handleDownload = () => {
-    window.open(apiUrl("/api/reels/download"), "_blank");
+    const a = document.createElement("a");
+    a.href = videoSrc;
+    a.download = "aitah-verdict.mp4";
+    a.click();
+  };
+
+  const handleShareTwitter = () => {
+    const text = `${verdict.label} — ${verdict.confidence}% confidence!\n\n"${post.title}"\n\nTwo AI agents debated this Reddit AITA post. The verdict is in.\n\n#AITAH #AITrial #RedditVerdict`;
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(post.url)}`;
+    window.open(tweetUrl, "_blank", "noopener,noreferrer");
   };
 
   const juryBar = Object.entries(jury.verdictCounts).sort(([, a], [, b]) => b - a);
@@ -368,51 +386,79 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
             <h3 className="text-xs font-black text-zinc-400 tracking-widest mb-3">
               EXPORT REEL
             </h3>
-            <p className="text-xs text-zinc-500 mb-3">
-              Generate a 60-90s video for TikTok, Reels, or Twitter.
-            </p>
 
-            {!renderDone ? (
-              <button
-                onClick={handleExport}
-                disabled={rendering}
-                className={`click-jiggle w-full py-3 rounded-xl font-bold text-sm transition-all ${
-                  rendering
-                    ? "bg-zinc-700 text-zinc-400 cursor-wait"
-                    : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white shadow-lg shadow-orange-900/20"
-                }`}
-              >
-                {rendering ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        fill="none"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      />
-                    </svg>
-                    Rendering... (~90s)
-                  </span>
-                ) : (
-                  "\uD83C\uDFAC Generate Video"
-                )}
-              </button>
+            {renderDone ? (
+              <div className="flex flex-col gap-3">
+                <video
+                  src={videoSrc}
+                  controls
+                  playsInline
+                  className="w-full rounded-lg border border-zinc-700/50"
+                  style={{ maxHeight: 320 }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDownload}
+                    className="click-jiggle flex-1 py-2.5 rounded-xl font-bold text-sm bg-green-600 hover:bg-green-500 text-white transition-all"
+                  >
+                    {"\u2B07"} Download
+                  </button>
+                  <button
+                    onClick={handleShareTwitter}
+                    className="click-jiggle flex-1 py-2.5 rounded-xl font-bold text-sm bg-sky-600 hover:bg-sky-500 text-white transition-all"
+                  >
+                    {"\uD83D\uDC26"} Share on X
+                  </button>
+                </div>
+                <button
+                  onClick={handleExport}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  Re-generate video
+                </button>
+              </div>
             ) : (
-              <button
-                onClick={handleDownload}
-                className="click-jiggle w-full py-3 rounded-xl font-bold text-sm bg-green-600 hover:bg-green-500 text-white transition-all"
-              >
-                {"\u2B07"} Download Reel (.mp4)
-              </button>
+              <>
+                <p className="text-xs text-zinc-500 mb-3">
+                  Generate a 60-90s video for TikTok, Reels, or Twitter.
+                </p>
+                {renderError && (
+                  <p className="text-xs text-red-400 mb-2">{renderError}</p>
+                )}
+                <button
+                  onClick={handleExport}
+                  disabled={rendering}
+                  className={`click-jiggle w-full py-3 rounded-xl font-bold text-sm transition-all ${
+                    rendering
+                      ? "bg-zinc-700 text-zinc-400 cursor-wait"
+                      : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white shadow-lg shadow-orange-900/20"
+                  }`}
+                >
+                  {rendering ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                      </svg>
+                      Rendering... (~90s)
+                    </span>
+                  ) : (
+                    "\uD83C\uDFAC Generate Video"
+                  )}
+                </button>
+              </>
             )}
           </motion.div>
         </div>
