@@ -108,19 +108,39 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
     setRenderDone(false);
     setRenderError(null);
     try {
-      const res = await fetch(apiUrl("/api/reels/render"), {
+      const startRes = await fetch(apiUrl("/api/reels/render"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: post.url }),
       });
-      if (res.ok) {
-        setRenderDone(true);
-      } else {
-        const data = await res.json().catch(() => null);
-        setRenderError(data?.error ?? `Render failed (${res.status})`);
+      if (!startRes.ok) {
+        const data = await startRes.json().catch(() => null);
+        setRenderError(data?.error ?? `Render failed to start (${startRes.status})`);
+        return;
       }
+
+      // Poll status endpoint because hosted backends can timeout long HTTP requests.
+      for (let i = 0; i < 180; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const statusRes = await fetch(apiUrl("/api/reels/status"));
+        const statusData = await statusRes.json().catch(() => null);
+        if (!statusRes.ok) {
+          setRenderError(statusData?.error ?? "Render failed on server");
+          return;
+        }
+        const status = statusData?.status;
+        if (status === "ready") {
+          setRenderDone(true);
+          return;
+        }
+        if (status === "error") {
+          setRenderError(statusData?.error ?? "Render failed on server");
+          return;
+        }
+      }
+      setRenderError("Render is taking longer than expected. Please try again in a bit.");
     } catch {
-      setRenderError("Network error — is the backend running?");
+      setRenderError("Network error while checking render status.");
     } finally {
       setRendering(false);
     }

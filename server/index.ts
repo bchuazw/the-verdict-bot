@@ -795,18 +795,31 @@ function generateOneLiner(title: string, label: string): string {
 /* ── Render endpoint ── */
 
 let renderInProgress = false;
+let renderError: string | null = null;
+let renderLastStartedAt: number | null = null;
+let renderLastFinishedAt: number | null = null;
+let renderOutputFile: string | null = null;
 
 app.post("/api/reels/render", async (req, res) => {
   if (renderInProgress) {
-    return res.status(409).json({ error: "Render already in progress" });
+    return res.status(202).json({
+      status: "running",
+      message: "Render already in progress",
+      startedAt: renderLastStartedAt,
+    });
   }
-  renderInProgress = true;
 
   try {
     const { url } = req.body as { url: string };
     const redditUrl =
       url ??
       "https://www.reddit.com/r/AmItheAsshole/comments/13xga9y/aita_for_uninviting_my_sister_to_my_wedding/";
+
+    renderInProgress = true;
+    renderError = null;
+    renderLastStartedAt = Date.now();
+    renderLastFinishedAt = null;
+    renderOutputFile = null;
 
     console.log(`\n🎬 Starting reel render for: ${redditUrl}`);
 
@@ -829,27 +842,57 @@ app.post("/api/reels/render", async (req, res) => {
 
     child.on("close", (code) => {
       renderInProgress = false;
+      renderLastFinishedAt = Date.now();
       if (code === 0) {
         const mp4Path = path.resolve(ROOT, "aitah-story-reel-60s.mp4");
         if (fs.existsSync(mp4Path)) {
-          res.json({
-            success: true,
-            file: "aitah-story-reel-60s.mp4",
-            size: fs.statSync(mp4Path).size,
-          });
+          renderOutputFile = mp4Path;
+          console.log(`✅ Reel ready: ${mp4Path}`);
         } else {
-          res.status(500).json({ error: "Render completed but output missing" });
+          renderError = "Render completed but output missing";
         }
       } else {
-        res.status(500).json({ error: `Render failed (exit ${code})`, output });
+        renderError = `Render failed (exit ${code}). ${output.slice(-600)}`;
       }
+    });
+
+    return res.status(202).json({
+      status: "started",
+      message: "Render started",
+      startedAt: renderLastStartedAt,
     });
   } catch (err: unknown) {
     renderInProgress = false;
-    res.status(500).json({
-      error: err instanceof Error ? err.message : "Unknown error",
+    renderError = err instanceof Error ? err.message : "Unknown error";
+    return res.status(500).json({ error: renderError });
+  }
+});
+
+app.get("/api/reels/status", (_req, res) => {
+  if (renderInProgress) {
+    return res.json({
+      status: "running",
+      startedAt: renderLastStartedAt,
     });
   }
+  if (renderError) {
+    return res.status(500).json({
+      status: "error",
+      error: renderError,
+      startedAt: renderLastStartedAt,
+      finishedAt: renderLastFinishedAt,
+    });
+  }
+  if (renderOutputFile && fs.existsSync(renderOutputFile)) {
+    const stat = fs.statSync(renderOutputFile);
+    return res.json({
+      status: "ready",
+      file: "aitah-story-reel-60s.mp4",
+      size: stat.size,
+      finishedAt: renderLastFinishedAt,
+    });
+  }
+  return res.json({ status: "idle" });
 });
 
 app.get("/api/reels/download", (_req, res) => {
@@ -875,5 +918,6 @@ app.listen(PORT, () => {
   console.log(`   POST /api/agent/start-session          — start voice trial (human vs agent)`);
   console.log(`   POST /api/agent/tools/search-evidence  — agent Firecrawl webhook`);
   console.log(`   POST /api/reels/render                 — render a story reel`);
+  console.log(`   GET  /api/reels/status                 — check render progress/status`);
   console.log(`   GET  /api/reels/download                — download latest reel\n`);
 });
