@@ -131,7 +131,7 @@ npm run dev:all
 
 ### Render a video
 
-Requires **FFmpeg** on PATH. Background video at `public/video/parkour-bg.mp4` (add locally; gitignored).
+Requires **FFmpeg** on PATH. Background video at `public/video/parkour-bg.mp4` is included in the repo.
 
 ```sh
 npx tsx scripts/render-story-reel.ts "https://www.reddit.com/r/AmItheAsshole/comments/..."

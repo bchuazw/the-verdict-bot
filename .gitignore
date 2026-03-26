@@ -14,14 +14,15 @@ dist-ssr
 .env
 .env.*
 
-# Rendered videos (large files, keep locally)
-*.mp4
+# Rendered output videos (large, per-run — keep locally)
+aitah-*.mp4
 
-# Generated audio / assets
+# Generated audio / assets (per-case, regenerated at runtime)
 public/generated/
 
-# Background video (large, downloaded locally)
-public/video/
+# Background video asset used by Remotion (committed so teammates can render)
+# If you add more large videos, track them explicitly here.
+!public/video/parkour-bg.mp4
 
 # Vercel
 .vercel
