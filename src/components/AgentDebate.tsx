@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiUrl } from "@/lib/api";
 
 interface DebateEntry {
   id: string;
@@ -116,7 +117,7 @@ export default function AgentDebate({ caseBundle, onDebateComplete }: Props) {
         color: "#ff4500",
       });
 
-      const res = await fetch("/api/agent/start-debate", {
+      const res = await fetch(apiUrl("/api/agent/start-debate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ caseBundle }),

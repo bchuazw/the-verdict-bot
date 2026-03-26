@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: aitah-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: ELEVENLABS_PROSECUTOR_AGENT_ID
+        sync: false
+      - key: ELEVENLABS_DEFENSE_AGENT_ID
+        sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: ELEVENLABS_FEMALE_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MALE_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_NARRATOR_VOICE_ID
+        sync: false
+      - key: MINIMAX_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGIN
+        sync: false

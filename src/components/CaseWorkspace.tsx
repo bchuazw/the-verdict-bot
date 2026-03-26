@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import DiscussionChat, { type ChatMessage } from "./DiscussionChat";
 import VoiceTrial from "./VoiceTrial";
 import AgentDebate from "./AgentDebate";
+import { apiUrl } from "@/lib/api";
 
 interface RedditComment {
   id: string;
@@ -103,7 +104,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
     setRendering(true);
     setRenderDone(false);
     try {
-      const res = await fetch("/api/reels/render", {
+      const res = await fetch(apiUrl("/api/reels/render"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: post.url }),
@@ -117,7 +118,7 @@ export default function CaseWorkspace({ bundle, onNewCase }: Props) {
   };
 
   const handleDownload = () => {
-    window.open("/api/reels/download", "_blank");
+    window.open(apiUrl("/api/reels/download"), "_blank");
   };
 
   const juryBar = Object.entries(jury.verdictCounts).sort(([, a], [, b]) => b - a);

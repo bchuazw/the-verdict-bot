@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useConversation } from "@elevenlabs/react";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiUrl } from "@/lib/api";
 
 interface TranscriptEntry {
   role: "agent" | "user";
@@ -70,7 +71,7 @@ export default function VoiceTrial({ postUrl, postTitle, caseBundle, onClose }: 
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      const res = await fetch("/api/agent/start-session", {
+      const res = await fetch(apiUrl("/api/agent/start-session"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(caseBundle ? { caseBundle } : { url: postUrl }),

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import CaseWorkspace, { type CaseBundle } from "@/components/CaseWorkspace";
+import { apiUrl } from "@/lib/api";
 
 const SAMPLES = [
   {
@@ -65,7 +66,7 @@ const Index = () => {
         // CORS or network error — server will fetch instead
       }
 
-      const res = await fetch("/api/reddit/ingest", {
+      const res = await fetch(apiUrl("/api/reddit/ingest"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, redditRaw }),

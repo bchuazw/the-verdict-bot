@@ -14,8 +14,15 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: "100kb" }));
+
+const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "*";
+app.use(cors({
+  origin: allowedOrigin === "*" ? true : [allowedOrigin, "http://localhost:8080"],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}));
+
+app.use(express.json({ limit: "2mb" }));
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
@@ -840,7 +847,7 @@ app.use("/generated", express.static(path.resolve(ROOT, "public", "generated")))
    Start
    ═══════════════════════════════════════════════════ */
 
-const PORT = 3001;
+const PORT = parseInt(process.env.PORT ?? "3001", 10);
 app.listen(PORT, () => {
   console.log(`\n⚖️  AITAH?! Server running on http://localhost:${PORT}`);
   console.log(`   POST /api/reddit/ingest               — load a Reddit thread`);
