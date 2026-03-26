@@ -676,7 +676,13 @@ app.post("/api/reddit/ingest", async (req, res) => {
 
     console.log(`\n📥 Ingesting: ${url}`);
 
-    const raw = await fetchRedditThread(url);
+    let raw: unknown;
+    if (req.body?.redditRaw && Array.isArray(req.body.redditRaw) && req.body.redditRaw.length >= 2) {
+      console.log(`  Using client-provided Reddit data`);
+      raw = req.body.redditRaw;
+    } else {
+      raw = await fetchRedditThread(url);
+    }
     const postData = (raw as any)[0]?.data?.children?.[0]?.data;
     if (!postData) throw new Error("Could not parse Reddit post");
 

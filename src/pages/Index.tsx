@@ -55,10 +55,20 @@ const Index = () => {
     setView("loading");
     setError(null);
     try {
+      let redditRaw: unknown = null;
+      try {
+        const path = new URL(url).pathname.replace(/\/$/, "");
+        const jsonUrl = `https://www.reddit.com${path}.json?raw_json=1`;
+        const r = await fetch(jsonUrl);
+        if (r.ok) redditRaw = await r.json();
+      } catch {
+        // CORS or network error — server will fetch instead
+      }
+
       const res = await fetch("/api/reddit/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, redditRaw }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

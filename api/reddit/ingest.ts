@@ -35,7 +35,13 @@ export default async function handler(req: Request) {
       );
     }
 
-    const raw = await fetchRedditThread(url);
+    let raw: unknown;
+    if (body?.redditRaw && Array.isArray(body.redditRaw) && body.redditRaw.length >= 2) {
+      raw = body.redditRaw;
+    } else {
+      raw = await fetchRedditThread(url);
+    }
+
     const bundle = buildCaseBundle(raw, url);
 
     const receipts = await searchFirecrawlReceipts(
