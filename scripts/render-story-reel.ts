@@ -1052,10 +1052,12 @@ async function main() {
   /* ── 13. Render ── */
   const compositionId = "RedditStoryReel60";
   console.log(`\u{1F3AC} Step 8 \u2014 Rendering "${compositionId}"...`);
+
   const composition = await selectComposition({
     serveUrl: bundled,
     id: compositionId,
     inputProps,
+    chromiumOptions: { enableMultiProcessOnLinux: true },
   });
 
   const adjusted = { ...composition, durationInFrames: totalFrames };
@@ -1072,6 +1074,7 @@ async function main() {
     codec: "h264",
     outputLocation: outputPath,
     inputProps,
+    chromiumOptions: { enableMultiProcessOnLinux: true },
     onProgress: ({ progress }: { progress: number }) => {
       process.stdout.write(
         `  Rendering: ${Math.round(progress * 100)}%\r`,

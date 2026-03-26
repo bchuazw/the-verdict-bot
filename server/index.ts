@@ -856,7 +856,7 @@ app.post("/api/reels/render", async (req, res) => {
           renderError = "Render completed but output missing";
         }
       } else {
-        renderError = `Render failed (exit ${code}). ${output.slice(-600)}`;
+        renderError = `Render failed (exit ${code}). ${output.slice(-2000)}`;
       }
     });
 
